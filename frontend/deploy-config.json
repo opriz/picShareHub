@@ -1,0 +1,54 @@
+{
+  "name": "照片共享服务前端",
+  "version": "1.0.0",
+  "deployment": {
+    "platform": "阿里云OSS + CDN",
+    "region": "cn-hangzhou",
+    "bucket": "your-bucket-name",
+    "staticWebsite": {
+      "enabled": true,
+      "indexDocument": "index.html",
+      "errorDocument": "index.html"
+    },
+    "cors": {
+      "enabled": true,
+      "rules": [
+        {
+          "allowedOrigins": ["*"],
+          "allowedMethods": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+          "allowedHeaders": ["*"],
+          "exposeHeaders": ["ETag", "x-oss-request-id"],
+          "maxAgeSeconds": 3600
+        }
+      ]
+    },
+    "cdn": {
+      "enabled": true,
+      "domain": "your-cdn-domain.com",
+      "https": true,
+      "cacheRules": [
+        {
+          "type": "suffix",
+          "value": ".html",
+          "ttl": 0
+        },
+        {
+          "type": "suffix",
+          "value": ".js,.css",
+          "ttl": 31536000
+        },
+        {
+          "type": "suffix",
+          "value": ".png,.jpg,.jpeg,.gif,.svg",
+          "ttl": 31536000
+        }
+      ]
+    }
+  },
+  "buildConfig": {
+    "outputDir": "dist",
+    "assetsDir": "assets",
+    "minify": true,
+    "sourcemap": false
+  }
+}
