@@ -56,7 +56,7 @@ export async function sendVerificationEmail(email, token) {
         <div style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 28px;">📸 PicShare</h1>
-            <p style="color: rgba(255,255,255,0.9); margin-top: 8px;">摄影师照片分享平台</p>
+            <p style="color: rgba(255,255,255,0.9); margin-top: 8px;">照片即时分享平台</p>
           </div>
           <div style="padding: 30px; background: #fff; border: 1px solid #eee; border-top: 0;">
             <h2 style="color: #333; margin-top: 0;">验证您的邮箱</h2>

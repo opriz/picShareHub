@@ -44,7 +44,7 @@ export default function LoginPage() {
             <Camera className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">PicShare</h1>
-          <p className="text-gray-500 mt-1">摄影师照片分享平台</p>
+          <p className="text-gray-500 mt-1">照片即时分享平台</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8" style={{ width: '100%', maxWidth: '100%' }}>
