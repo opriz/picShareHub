@@ -4,96 +4,73 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
-    // If SMTP is not configured, use a mock transporter
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-      console.warn('⚠️  SMTP not configured, email verification will be skipped');
+      console.warn('⚠️  SMTP not configured, emails will not be sent');
       return null;
     }
-
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '465'),
       secure: parseInt(process.env.SMTP_PORT || '465') === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
   }
   return transporter;
 }
 
-export async function sendVerificationEmail(email, token) {
-  const transport = getTransporter();
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const verifyUrl = `${frontendUrl}/verify-email?token=${token}`;
+const BRAND_HEADER = `
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">📸 PicShare</h1>
+    <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 13px;">摄影师照片分享平台</p>
+  </div>`;
 
-  if (!transport) {
-    console.log(`📧 [Mock] Verification email for ${email}: ${verifyUrl}`);
-    return true;
-  }
+function wrap(body) {
+  return `<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">${BRAND_HEADER}<div style="padding:28px 24px;background:#fff;border:1px solid #eee;border-top:0;border-radius:0 0 12px 12px;">${body}</div></div>`;
+}
 
-  await transport.sendMail({
+async function send(to, subject, html) {
+  const t = getTransporter();
+  if (!t) return false;
+  await t.sendMail({
     from: process.env.SMTP_FROM || '"PicShare" <noreply@picshare.com.cn>',
-    to: email,
-    subject: 'PicShare - 验证您的邮箱',
-    html: `
-      <div style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">📸 PicShare</h1>
-          <p style="color: rgba(255,255,255,0.9); margin-top: 8px;">摄影师照片分享平台</p>
-        </div>
-        <div style="padding: 30px; background: #fff; border: 1px solid #eee; border-top: 0;">
-          <h2 style="color: #333; margin-top: 0;">验证您的邮箱</h2>
-          <p style="color: #666; line-height: 1.6;">感谢注册 PicShare！请点击下方按钮验证您的邮箱地址：</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verifyUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;">
-              验证邮箱
-            </a>
-          </div>
-          <p style="color: #999; font-size: 13px;">此链接将在 24 小时后过期。如果您没有注册 PicShare，请忽略此邮件。</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="color: #999; font-size: 12px;">如果按钮无法点击，请复制以下链接到浏览器：<br>${verifyUrl}</p>
-        </div>
-      </div>
-    `,
+    to, subject, html,
   });
-
   return true;
 }
 
+export async function sendVerificationEmail(email, token) {
+  const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
+  return send(email, 'PicShare - 验证您的邮箱', wrap(`
+    <h2 style="color:#333;margin:0 0 12px;font-size:18px;">验证您的邮箱</h2>
+    <p style="color:#666;line-height:1.6;margin:0 0 24px;">感谢注册 PicShare！请点击下方按钮验证您的邮箱地址：</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${url}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 32px;text-decoration:none;border-radius:8px;font-size:15px;display:inline-block;">验证邮箱</a>
+    </div>
+    <p style="color:#999;font-size:12px;">此链接 24 小时内有效。</p>
+    <p style="color:#bbb;font-size:11px;word-break:break-all;">${url}</p>
+  `));
+}
+
+export async function sendVerificationCode(email, code) {
+  return send(email, `PicShare - 验证码 ${code}`, wrap(`
+    <h2 style="color:#333;margin:0 0 12px;font-size:18px;">修改密码验证码</h2>
+    <p style="color:#666;line-height:1.6;margin:0 0 20px;">您正在修改密码，验证码为：</p>
+    <div style="text-align:center;margin:20px 0;">
+      <span style="display:inline-block;background:#f3f4f6;padding:16px 40px;border-radius:12px;font-size:32px;font-weight:700;letter-spacing:8px;color:#333;">${code}</span>
+    </div>
+    <p style="color:#999;font-size:13px;">验证码 10 分钟内有效，请勿泄露给他人。</p>
+  `));
+}
+
 export async function sendPasswordResetEmail(email, token) {
-  const transport = getTransporter();
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
-
-  if (!transport) {
-    console.log(`📧 [Mock] Password reset email for ${email}: ${resetUrl}`);
-    return true;
-  }
-
-  await transport.sendMail({
-    from: process.env.SMTP_FROM || '"PicShare" <noreply@picshare.com.cn>',
-    to: email,
-    subject: 'PicShare - 重置密码',
-    html: `
-      <div style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">📸 PicShare</h1>
-        </div>
-        <div style="padding: 30px; background: #fff; border: 1px solid #eee; border-top: 0;">
-          <h2 style="color: #333; margin-top: 0;">重置密码</h2>
-          <p style="color: #666;">请点击下方按钮重置您的密码：</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;">
-              重置密码
-            </a>
-          </div>
-          <p style="color: #999; font-size: 13px;">此链接将在 1 小时后过期。</p>
-        </div>
-      </div>
-    `,
-  });
-
-  return true;
+  const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+  return send(email, 'PicShare - 重置密码', wrap(`
+    <h2 style="color:#333;margin:0 0 12px;font-size:18px;">重置密码</h2>
+    <p style="color:#666;line-height:1.6;margin:0 0 24px;">您请求了密码重置，请点击下方按钮设置新密码：</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${url}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 32px;text-decoration:none;border-radius:8px;font-size:15px;display:inline-block;">重置密码</a>
+    </div>
+    <p style="color:#999;font-size:12px;">此链接 1 小时内有效。如果不是您的操作，请忽略此邮件。</p>
+    <p style="color:#bbb;font-size:11px;word-break:break-all;">${url}</p>
+  `));
 }
