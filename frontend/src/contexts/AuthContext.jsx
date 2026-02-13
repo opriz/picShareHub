@@ -32,11 +32,11 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (email, password, name) => {
     const res = await authAPI.register({ email, password, name });
-    const { token, user: userData } = res.data;
+    const { token, user: userData, message } = res.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-    return userData;
+    return { ...userData, message };
   }, []);
 
   const logout = useCallback(() => {

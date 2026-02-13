@@ -31,8 +31,12 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(email, password, name);
-      toast.success('注册成功！');
+      const result = await register(email, password, name);
+      // Show the message from backend (which includes email verification prompt)
+      const successMessage = result.message || (result.emailVerified 
+        ? '注册成功！' 
+        : '注册成功！请查收邮箱验证邮件，验证后即可使用全部功能。');
+      toast.success(successMessage, { duration: 5000 });
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || '注册失败');

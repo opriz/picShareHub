@@ -10,6 +10,8 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -18,6 +20,9 @@ body {
   background-color: #f9fafb;
   color: #111827;
   line-height: 1.5;
+  width: 100%;
+  overflow-x: hidden;
+  min-width: 320px;
 }
 
 a {
