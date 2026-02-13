@@ -19,6 +19,7 @@ export default function AlbumDetailPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadQueue, setUploadQueue] = useState([]);
   const [showQR, setShowQR] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [expiryHours, setExpiryHours] = useState(24);
@@ -78,33 +79,177 @@ export default function AlbumDetailPage() {
     fetchAlbum();
   }, [fetchAlbum]);
 
+  // 处理上传队列
+  useEffect(() => {
+    if (uploadQueue.length === 0) {
+      setUploading(false);
+      setUploadProgress(0);
+      return;
+    }
+
+    let isProcessing = false;
+    let queueTimer = null;
+
+    const processQueue = async () => {
+      if (isProcessing) return;
+      
+      const now = Date.now();
+      const pendingTasks = uploadQueue.filter(t => 
+        t.status === 'pending' || 
+        (t.status === 'waiting' && (!t.retryAfter || now >= t.retryAfter))
+      );
+      
+      if (pendingTasks.length === 0) {
+        // 检查是否还有正在上传的任务
+        const uploadingTasks = uploadQueue.filter(t => t.status === 'uploading');
+        if (uploadingTasks.length === 0) {
+          setUploading(false);
+        } else {
+          // 如果有等待中的任务，设置定时器检查
+          const waitingTasks = uploadQueue.filter(t => t.status === 'waiting' && t.retryAfter && now < t.retryAfter);
+          if (waitingTasks.length > 0) {
+            const nextRetryTime = Math.min(...waitingTasks.map(t => t.retryAfter));
+            const delay = nextRetryTime - now + 100; // 多等100ms确保时间到达
+            queueTimer = setTimeout(() => {
+              processQueue();
+            }, delay);
+          }
+        }
+        return;
+      }
+
+      isProcessing = true;
+      setUploading(true);
+      const task = pendingTasks[0];
+      
+      // 更新任务状态为上传中
+      setUploadQueue(prev => prev.map(t => 
+        t.batchId === task.batchId ? { ...t, status: 'uploading', progress: 0 } : t
+      ));
+
+      // 处理单个上传任务
+      const processUploadTask = async (task) => {
+        const { files, batchId } = task;
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append('photos', files[i]);
+        }
+
+        try {
+          const res = await albumAPI.uploadPhotos(id, formData, (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+            // 更新队列中该任务的进度
+            setUploadQueue(prev => prev.map(t => 
+              t.batchId === batchId ? { ...t, progress: percent } : t
+            ));
+          });
+
+          // 上传成功，从队列中移除
+          setUploadQueue(prev => prev.filter(t => t.batchId !== batchId));
+          toast.success(res.data.message);
+          return true;
+        } catch (err) {
+          const status = err.response?.status;
+          if (status === 429) {
+            // 限流错误，等待后重试
+            const retryAfter = parseInt(err.response?.headers['retry-after']) || 60;
+            const retryTime = Date.now() + retryAfter * 1000;
+            toast.error(`上传过于频繁，将在 ${retryAfter} 秒后自动重试...`);
+            
+            // 更新任务状态为等待重试
+            setUploadQueue(prev => prev.map(t => 
+              t.batchId === batchId ? { ...t, status: 'waiting', retryAfter: retryTime } : t
+            ));
+
+            // 等待后重试（通过useEffect自动触发）
+            return false;
+          } else {
+            // 其他错误，从队列中移除并显示错误
+            setUploadQueue(prev => prev.filter(t => t.batchId !== batchId));
+            toast.error(err.response?.data?.error || '上传失败');
+            return false;
+          }
+        }
+      };
+
+      const success = await processUploadTask(task);
+      isProcessing = false;
+      
+      // 如果上传成功，刷新影集数据
+      if (success) {
+        setTimeout(() => {
+          fetchAlbum();
+        }, 500);
+      }
+      
+      // 继续处理下一个任务
+      queueTimer = setTimeout(() => {
+        processQueue();
+      }, 500);
+    };
+
+    processQueue();
+    
+    // 清理函数
+    return () => {
+      isProcessing = false;
+      if (queueTimer) {
+        clearTimeout(queueTimer);
+      }
+    };
+  }, [uploadQueue, id, fetchAlbum]);
+
   const handleUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-      formData.append('photos', files[i]);
-    }
-
-    setUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const res = await albumAPI.uploadPhotos(id, formData, (progressEvent) => {
-        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        setUploadProgress(percent);
-      });
-
-      toast.success(res.data.message);
-      fetchAlbum(); // Refresh
-    } catch (err) {
-      toast.error(err.response?.data?.error || '上传失败');
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
+    // 限制一次最多选择20张图片
+    const maxFilesPerSelect = 20;
+    if (files.length > maxFilesPerSelect) {
+      toast.error(`一次最多只能选择 ${maxFilesPerSelect} 张图片`);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
+
+    // 检查影集当前照片数量
+    const maxPhotosPerAlbum = 50;
+    const currentPhotoCount = photos.length;
+    const remainingSlots = maxPhotosPerAlbum - currentPhotoCount;
+    
+    if (remainingSlots <= 0) {
+      toast.error(`影集最多只能包含 ${maxPhotosPerAlbum} 张照片，当前已有 ${currentPhotoCount} 张`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // 如果选择的照片数量超过剩余空间，只选择能放下的数量
+    const filesToUpload = Array.from(files).slice(0, Math.min(files.length, remainingSlots));
+    if (filesToUpload.length < files.length) {
+      toast.warning(`影集最多还能上传 ${remainingSlots} 张照片，已选择前 ${filesToUpload.length} 张`);
+    }
+
+    // 将文件分批处理（每批最多20张）
+    const batchSize = 20;
+    const batches = [];
+    for (let i = 0; i < filesToUpload.length; i += batchSize) {
+      batches.push(filesToUpload.slice(i, i + batchSize));
+    }
+
+    // 将每个批次加入上传队列
+    const newTasks = batches.map((batch, index) => ({
+      batchId: Date.now() + index,
+      files: batch,
+      status: 'pending',
+      progress: 0,
+      retryAfter: null,
+    }));
+
+    setUploadQueue(prev => [...prev, ...newTasks]);
+    toast.info(`已添加 ${filesToUpload.length} 张照片到上传队列，将按顺序上传`);
+
+    // 清空文件选择
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDeletePhoto = async (photoId) => {
@@ -236,18 +381,37 @@ export default function AlbumDetailPage() {
       </div>
 
       {/* Upload progress */}
-      {uploading && (
+      {(uploading || uploadQueue.length > 0) && (
         <div className="mb-6 bg-white rounded-xl border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">上传中...</span>
-            <span className="text-sm font-medium text-indigo-600">{uploadProgress}%</span>
+            <span className="text-sm text-gray-600">
+              {uploadQueue.length > 0 
+                ? `上传队列：${uploadQueue.filter(t => t.status === 'uploading').length} 个进行中，${uploadQueue.filter(t => t.status === 'pending' || t.status === 'waiting').length} 个等待中`
+                : '上传中...'}
+            </span>
+            <span className="text-sm font-medium text-indigo-600">
+              {uploadQueue.length > 0 && uploadQueue[0].status === 'uploading' 
+                ? `${uploadQueue[0].progress}%`
+                : uploadProgress > 0 
+                ? `${uploadProgress}%`
+                : '等待中...'}
+            </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2">
             <div
               className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${uploadProgress}%` }}
+              style={{ 
+                width: `${uploadQueue.length > 0 && uploadQueue[0].status === 'uploading' 
+                  ? uploadQueue[0].progress 
+                  : uploadProgress}%` 
+              }}
             />
           </div>
+          {uploadQueue.length > 1 && (
+            <p className="text-xs text-gray-400 mt-2">
+              共 {uploadQueue.length} 个批次，将按顺序上传
+            </p>
+          )}
         </div>
       )}
 

@@ -18,9 +18,9 @@ export const uploadPhotos = multer({
   fileFilter,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB per file
-    files: 50, // max 50 files at once
+    files: 20, // 一次最多上传20张
   },
-}).array('photos', 50);
+}).array('photos', 20);
 
 export const uploadAvatar = multer({
   storage,

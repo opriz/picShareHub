@@ -30,6 +30,24 @@ export async function uploadPhotos(req, res) {
       return res.status(400).json({ error: '影集已过期，无法上传' });
     }
 
+    // 检查当前影集照片数量
+    const photoCountResult = await pool.query(
+      'SELECT COUNT(*) as count FROM photos WHERE album_id = $1',
+      [albumId]
+    );
+    const currentPhotoCount = parseInt(photoCountResult.rows[0].count);
+    const maxPhotos = 50;
+    
+    if (currentPhotoCount >= maxPhotos) {
+      return res.status(400).json({ error: `影集最多只能包含 ${maxPhotos} 张照片` });
+    }
+
+    // 检查本次上传是否会超过限制
+    if (currentPhotoCount + req.files.length > maxPhotos) {
+      const remaining = maxPhotos - currentPhotoCount;
+      return res.status(400).json({ error: `影集最多只能包含 ${maxPhotos} 张照片，当前已有 ${currentPhotoCount} 张，最多还能上传 ${remaining} 张` });
+    }
+
     const oss = getOSSClient();
     const baseUrl = getOSSBaseUrl();
     const uploadedPhotos = [];

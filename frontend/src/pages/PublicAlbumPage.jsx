@@ -185,15 +185,15 @@ export default function PublicAlbumPage() {
                 </div>
                 
                 {/* Photo name and size */}
-                <div className="p-2">
-                  <p className="text-xs text-gray-500 truncate">
+                <div className="p-2 flex items-center justify-between gap-2 w-full">
+                  <p className="text-xs text-gray-500 truncate flex-1 min-w-0">
                     {photo.original_name}
-                    {photo.file_size && (
-                      <span className="ml-1.5 text-gray-400">
-                        ({formatFileSize(photo.file_size)})
-                      </span>
-                    )}
                   </p>
+                  {photo.file_size && (
+                    <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+                      {formatFileSize(photo.file_size)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

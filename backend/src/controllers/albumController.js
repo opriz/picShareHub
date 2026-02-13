@@ -9,6 +9,21 @@ export async function createAlbum(req, res) {
     const { title, description, expiresInHours } = req.body;
     const userId = req.user.id;
 
+    // 检查用户创建的影集数量限制（不包括已过期的影集）
+    const now = new Date();
+    const albumCountResult = await pool.query(
+      `SELECT COUNT(*) as count FROM albums 
+       WHERE user_id = $1 
+       AND (is_expired = false OR expires_at > $2)`,
+      [userId, now]
+    );
+    const currentAlbumCount = parseInt(albumCountResult.rows[0].count);
+    const maxAlbums = 10;
+    
+    if (currentAlbumCount >= maxAlbums) {
+      return res.status(400).json({ error: `每个用户最多只能创建 ${maxAlbums} 个未过期影集` });
+    }
+
     const albumTitle = title || generateAlbumTitle();
     const shareCode = generateShareCode();
 

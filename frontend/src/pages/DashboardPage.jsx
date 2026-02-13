@@ -17,12 +17,20 @@ export default function DashboardPage() {
       const albumsList = Array.isArray(res.data?.albums) ? res.data.albums : [];
       setAlbums(albumsList);
     } catch (err) {
+      const status = err.response?.status;
+      const errorMessage = err.response?.data?.error || '获取影集失败';
+      
       // 检查是否是网络错误或真正的服务器错误
       const isNetworkError = !err.response || err.code === 'ECONNABORTED' || err.message === 'Network Error';
-      const isServerError = err.response?.status >= 500;
+      const isServerError = status >= 500;
+      const isRateLimit = status === 429;
       
-      // 只有在真正的错误时才显示提示，空列表是正常情况
-      if (isNetworkError || isServerError) {
+      // 429限流错误特殊处理
+      if (isRateLimit) {
+        toast.error('请求过于频繁，请稍后再试');
+        // 保持原有数据，不更新
+        setAlbums((prevAlbums) => prevAlbums.length > 0 ? prevAlbums : []);
+      } else if (isNetworkError || isServerError) {
         // 使用函数式更新，检查之前的状态
         setAlbums((prevAlbums) => {
           if (prevAlbums.length > 0) {
@@ -32,8 +40,12 @@ export default function DashboardPage() {
           // 如果之前就是空列表，不显示错误（空列表是正常情况）
           return [];
         });
+      } else if (status === 401) {
+        // 401未授权，会被API拦截器处理，这里不显示错误
+        setAlbums([]);
       } else {
-        // 其他错误（如401未授权），设置为空数组但不显示错误
+        // 其他错误
+        toast.error(errorMessage);
         setAlbums([]);
       }
     } finally {
@@ -46,6 +58,14 @@ export default function DashboardPage() {
   }, [fetchAlbums]);
 
   const handleCreate = async () => {
+    // 检查影集数量限制（不包括已过期的影集）
+    const maxAlbums = 10;
+    const activeAlbums = albums.filter(album => !album.isExpired);
+    if (activeAlbums.length >= maxAlbums) {
+      toast.error('已达到数量限制，无法创建更多影集');
+      return;
+    }
+
     setCreating(true);
     try {
       const res = await albumAPI.create({});
@@ -94,20 +114,21 @@ export default function DashboardPage() {
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">我的影集</h1>
-          <p className="text-sm text-gray-500 mt-1">共 {albums.length} 个影集</p>
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">我的影集</h1>
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 shadow-md"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              {creating ? '创建中...' : '创建影集'}
+            </button>
+          </div>
+          <p className="text-sm text-gray-500">共 {albums.length} 个影集</p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 text-sm w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          {creating ? '创建中...' : '一键创建影集'}
-        </button>
-      </div>
 
       {albums.length === 0 ? (
         <div 
@@ -128,9 +149,9 @@ export default function DashboardPage() {
               handleCreate();
             }}
             disabled={creating}
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200"
+            className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            <Plus className="w-4 h-4 mr-1.5" />
             创建影集
           </button>
         </div>

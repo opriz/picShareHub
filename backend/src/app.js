@@ -65,31 +65,39 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 每分钟100次
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: '请求过于频繁，请稍后再试' },
+  // 对于已认证的用户，使用用户ID作为key的一部分，避免同一IP下不同用户互相影响
+  keyGenerator: (req) => {
+    if (req.user?.id) {
+      return `${req.ip}-user-${req.user.id}`;
+    }
+    return req.ip;
+  },
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 增加到50次，避免正常用户被限制
+  max: 100, // 增加到100次，避免正常用户被限制
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: '登录尝试次数过多，请稍后再试' },
-});
-
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10,
-  message: { error: '上传过于频繁，请稍后再试' },
+  // 使用标准化的key生成器，避免同一IP下多个用户互相影响
+  keyGenerator: (req) => {
+    // 如果请求中有email，使用email作为key的一部分，避免同一IP下不同用户互相影响
+    const email = req.body?.email;
+    return email ? `${req.ip}-${email}` : req.ip;
+  },
 });
 
 // Apply rate limiters
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+// 上传路由使用全局API限流，不单独限制
 
 // API Routes
 app.use('/api/auth', authRoutes);
