@@ -135,20 +135,27 @@ export async function getAlbumDetail(req, res) {
     }
 
     const albumOwnerId = albumExistsResult.rows[0].user_id;
+    const isAdmin = req.user?.role === 'admin';
 
-    // Check if user owns the album
-    if (albumOwnerId !== userId) {
+    // Check if user owns the album (or is admin)
+    if (albumOwnerId !== userId && !isAdmin) {
       console.warn(`User ${userId} attempted to access album ${id} owned by ${albumOwnerId}`);
       return res.status(403).json({ error: '无权访问此影集' });
     }
 
     // Get album details with user info
+    // If admin, don't filter by user_id
     const albumsResult = await pool.query(
-      `SELECT a.*, u.name as photographer_name
-       FROM albums a
-       JOIN users u ON a.user_id = u.id
-       WHERE a.id = $1 AND a.user_id = $2`,
-      [id, userId]
+      isAdmin
+        ? `SELECT a.*, u.name as photographer_name
+           FROM albums a
+           JOIN users u ON a.user_id = u.id
+           WHERE a.id = $1`
+        : `SELECT a.*, u.name as photographer_name
+           FROM albums a
+           JOIN users u ON a.user_id = u.id
+           WHERE a.id = $1 AND a.user_id = $2`,
+      isAdmin ? [id] : [id, userId]
     );
 
     if (albumsResult.rows.length === 0) {
