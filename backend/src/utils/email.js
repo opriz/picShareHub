@@ -1,27 +1,31 @@
-import nodemailer from 'nodemailer';
+import China from '@alicloud/pop-core';
 
-let transporter = null;
+let dmClient = null;
 
-function getTransporter() {
-  if (!transporter) {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-      console.warn('⚠️  SMTP not configured, emails will not be sent');
+function getDMClient() {
+  if (!dmClient) {
+    const ak = process.env.OSS_ACCESS_KEY_ID || process.env.ALIYUN_AK;
+    const sk = process.env.OSS_ACCESS_KEY_SECRET || process.env.ALIYUN_SK;
+    if (!ak || !sk) {
+      console.warn('⚠️  Aliyun AK/SK not configured, emails disabled');
       return null;
     }
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '465'),
-      secure: parseInt(process.env.SMTP_PORT || '465') === 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    dmClient = new China({
+      accessKeyId: ak,
+      accessKeySecret: sk,
+      endpoint: 'https://dm.aliyuncs.com',
+      apiVersion: '2015-11-23',
     });
   }
-  return transporter;
+  return dmClient;
 }
 
+const SENDER = process.env.DM_SENDER || 'noreply@picshare.com.cn';
+
 const BRAND_HEADER = `
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">📸 PicShare</h1>
-    <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 13px;">摄影师照片分享平台</p>
+  <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:32px 24px;text-align:center;border-radius:12px 12px 0 0;">
+    <h1 style="color:#fff;margin:0;font-size:24px;font-weight:700;">📸 PicShare</h1>
+    <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:13px;">摄影师照片分享平台</p>
   </div>`;
 
 function wrap(body) {
@@ -29,13 +33,27 @@ function wrap(body) {
 }
 
 async function send(to, subject, html) {
-  const t = getTransporter();
-  if (!t) return false;
-  await t.sendMail({
-    from: process.env.SMTP_FROM || '"PicShare" <noreply@picshare.com.cn>',
-    to, subject, html,
-  });
-  return true;
+  const client = getDMClient();
+  if (!client) {
+    console.log(`📧 [No DM Client] To: ${to}, Subject: ${subject}`);
+    return false;
+  }
+
+  try {
+    await client.request('SingleSendMail', {
+      AccountName: SENDER,
+      AddressType: 1,
+      ReplyToAddress: false,
+      ToAddress: to,
+      Subject: subject,
+      HtmlBody: html,
+    }, { method: 'POST' });
+    console.log(`📧 Email sent to ${to}: ${subject}`);
+    return true;
+  } catch (error) {
+    console.error(`📧 Email failed to ${to}:`, error.message || error);
+    return false;
+  }
 }
 
 export async function sendVerificationEmail(email, token) {
@@ -47,7 +65,6 @@ export async function sendVerificationEmail(email, token) {
       <a href="${url}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 32px;text-decoration:none;border-radius:8px;font-size:15px;display:inline-block;">验证邮箱</a>
     </div>
     <p style="color:#999;font-size:12px;">此链接 24 小时内有效。</p>
-    <p style="color:#bbb;font-size:11px;word-break:break-all;">${url}</p>
   `));
 }
 
@@ -71,6 +88,5 @@ export async function sendPasswordResetEmail(email, token) {
       <a href="${url}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 32px;text-decoration:none;border-radius:8px;font-size:15px;display:inline-block;">重置密码</a>
     </div>
     <p style="color:#999;font-size:12px;">此链接 1 小时内有效。如果不是您的操作，请忽略此邮件。</p>
-    <p style="color:#bbb;font-size:11px;word-break:break-all;">${url}</p>
   `));
 }

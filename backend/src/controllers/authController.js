@@ -54,16 +54,15 @@ export async function register(req, res) {
       [email, passwordHash, name, verificationToken, verificationExpires]
     );
 
-    // Auto-verify if SMTP not configured
-    const autoVerify = !process.env.SMTP_HOST;
-    if (autoVerify) {
-      await pool.query('UPDATE users SET email_verified = TRUE WHERE id = ?', [result.insertId]);
-    } else {
-      try { await sendVerificationEmail(email, verificationToken); } catch (e) {
-        console.error('Email send failed:', e);
-        await pool.query('UPDATE users SET email_verified = TRUE WHERE id = ?', [result.insertId]);
-      }
+    // Try to send verification email; auto-verify if it fails
+    let emailSent = false;
+    try { emailSent = await sendVerificationEmail(email, verificationToken); } catch (e) {
+      console.error('Email send failed:', e);
     }
+    if (!emailSent) {
+      await pool.query('UPDATE users SET email_verified = TRUE WHERE id = ?', [result.insertId]);
+    }
+    const autoVerify = !emailSent;
 
     const token = signToken({ id: result.insertId, email, role: 'photographer', name });
 
@@ -166,13 +165,13 @@ export async function sendChangePasswordCode(req, res) {
       [code, expires, userId]
     );
 
-    const smtpConfigured = !!process.env.SMTP_HOST;
-    if (smtpConfigured) {
-      await sendVerificationCode(email, code);
+    let sent = false;
+    try { sent = await sendVerificationCode(email, code); } catch (e) {
+      console.error('Send code email failed:', e);
     }
 
     const resp = { message: `验证码已发送到 ${email.replace(/(.{2}).*(@.*)/, '$1***$2')}` };
-    if (!smtpConfigured) resp._devCode = code; // Dev fallback
+    if (!sent) resp._devCode = code; // Fallback when email not available
     res.json(resp);
   } catch (error) {
     console.error('Send code error:', error);
@@ -227,13 +226,13 @@ export async function forgotPassword(req, res) {
       [token, expires, users[0].id]
     );
 
-    const smtpConfigured = !!process.env.SMTP_HOST;
-    if (smtpConfigured) {
-      await sendPasswordResetEmail(users[0].email, token);
+    let sent = false;
+    try { sent = await sendPasswordResetEmail(users[0].email, token); } catch (e) {
+      console.error('Send reset email failed:', e);
     }
 
     const resp = { message: '如果该邮箱已注册，重置链接将发送到您的邮箱' };
-    if (!smtpConfigured) {
+    if (!sent) {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       resp._devResetLink = `${frontendUrl}/reset-password?token=${token}`;
     }
