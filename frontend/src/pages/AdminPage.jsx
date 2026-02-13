@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { adminAPI } from '../utils/api';
 import {
   Users, Image, Eye, Download, TrendingUp, Clock,
@@ -31,6 +32,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'indigo' }) {
 }
 
 export default function AdminPage() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [albums, setAlbums] = useState([]);
@@ -172,7 +174,14 @@ export default function AdminPage() {
                           ) : (
                             <div className="space-y-2">
                               {userAlbums.map((a) => (
-                                <div key={a.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm">
+                                <div 
+                                  key={a.id} 
+                                  className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/albums/${a.id}`);
+                                  }}
+                                >
                                   <div>
                                     <span className="font-medium text-gray-900">{a.title}</span>
                                     <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
@@ -225,7 +234,11 @@ export default function AdminPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {albums.map((album) => (
-                  <tr key={album.id} className="hover:bg-gray-50 transition-colors">
+                  <tr 
+                    key={album.id} 
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/albums/${album.id}`)}
+                  >
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900 text-sm">{album.title}</div>
                       <div className="text-xs text-gray-400">{album.share_code}</div>
