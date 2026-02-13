@@ -13,12 +13,12 @@ async function seedAdmin() {
 
   try {
     // Check if admin already exists
-    const [existing] = await pool.query(
-      'SELECT id FROM users WHERE email = ?',
+    const existingResult = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
       [email]
     );
 
-    if (existing.length > 0) {
+    if (existingResult.rows.length > 0) {
       console.log(`⚠️  Admin account already exists: ${email}`);
       process.exit(0);
     }
@@ -26,8 +26,8 @@ async function seedAdmin() {
     const passwordHash = await bcrypt.hash(password, 12);
 
     await pool.query(
-      'INSERT INTO users (email, password_hash, name, role, email_verified) VALUES (?, ?, ?, ?, ?)',
-      [email, passwordHash, name, 'admin', 1]
+      'INSERT INTO users (email, password_hash, name, role, email_verified) VALUES ($1, $2, $3, $4, $5)',
+      [email, passwordHash, name, 'admin', true]
     );
 
     console.log(`✅ Admin account created successfully!`);

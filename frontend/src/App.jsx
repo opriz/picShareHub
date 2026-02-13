@@ -73,6 +73,8 @@ function App() {
               borderRadius: '12px',
               padding: '12px 20px',
               fontSize: '14px',
+              maxWidth: '90vw',
+              wordBreak: 'break-word',
             },
           }}
         />

@@ -17,9 +17,9 @@ export default function Layout({ children }) {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+      <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50" style={{ width: '100%', maxWidth: '100%' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ width: '100%', maxWidth: '100%' }}>
           <div className="flex items-center justify-between h-16">
             <Link to="/dashboard" className="flex items-center space-x-2 text-decoration-none">
               <Camera className="w-7 h-7 text-indigo-600" />
@@ -113,7 +113,7 @@ export default function Layout({ children }) {
         )}
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ width: '100%', maxWidth: '100%' }}>
         {children}
       </main>
     </div>

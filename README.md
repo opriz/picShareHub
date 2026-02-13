@@ -47,6 +47,12 @@ picShareHub/
 └── deploy-remote.sh   # 远程部署脚本
 ```
 
+## 📚 文档
+
+- [部署指南](./DEPLOY.md) - 详细的阿里云部署文档
+- [快速部署](./QUICK_DEPLOY.md) - 三步快速部署
+- [手动部署](./MANUAL_DEPLOY.md) - 基于现有脚本的手动部署指南
+
 ## 快速开始
 
 ### 本地开发
@@ -70,20 +76,33 @@ npm install
 npm run dev
 ```
 
-### 部署到 ECS
+### 部署到阿里云 ECS
+
+**详细部署指南请查看 [DEPLOY.md](./DEPLOY.md)**
+
+快速部署：
 
 ```bash
-# 设置环境变量
+# 1. 设置环境变量（创建 .env.deploy 文件或直接导出）
 export ECS_HOST=你的ECS公网IP
 export DB_HOST=数据库地址
 export DB_PASSWORD=数据库密码
 export ALIYUN_AK=AccessKeyId
 export ALIYUN_SK=AccessKeySecret
 export OSS_BUCKET=你的OSS Bucket
+export DOMAIN=你的域名（可选）
 
-# 部署
+# 2. 执行部署脚本
 bash deploy-remote.sh
 ```
+
+部署脚本会自动完成：
+- ✅ 构建前端项目
+- ✅ 打包并上传到服务器
+- ✅ 安装依赖和配置环境
+- ✅ 初始化数据库
+- ✅ 配置 Nginx 和 systemd 服务
+- ✅ 设置定时清理任务
 
 ## 环境变量
 

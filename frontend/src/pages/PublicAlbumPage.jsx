@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { publicAPI } from '../utils/api';
+import { formatFileSize } from '../utils/format';
 import { Camera, Download, Image, Clock, AlertCircle, X, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -56,7 +57,7 @@ export default function PublicAlbumPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
         <div className="text-center">
           <div className="animate-spin w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4" />
           <p className="text-gray-500">加载中...</p>
@@ -67,8 +68,8 @@ export default function PublicAlbumPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="text-center max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+        <div className="text-center max-w-md" style={{ width: '100%', maxWidth: '100%' }}>
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
             <AlertCircle className="w-8 h-8 text-gray-400" />
           </div>
@@ -88,10 +89,10 @@ export default function PublicAlbumPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40" style={{ width: '100%', maxWidth: '100%' }}>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between" style={{ width: '100%', maxWidth: '100%' }}>
           <div className="flex items-center space-x-2">
             <Camera className="w-6 h-6 text-indigo-600" />
             <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
@@ -102,7 +103,7 @@ export default function PublicAlbumPage() {
       </header>
 
       {/* Album info */}
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6" style={{ width: '100%', maxWidth: '100%' }}>
         <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
           <h1 className="text-2xl font-bold text-gray-900">{album.title}</h1>
           {album.description && (
@@ -133,35 +134,47 @@ export default function PublicAlbumPage() {
             <p className="text-gray-500">影集中还没有照片</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="masonry-container">
             {photos.map((photo) => (
               <div
                 key={photo.id}
-                className="group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-all"
+                className="masonry-item group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-all"
               >
                 <div
-                  className="aspect-square cursor-pointer"
+                  className="cursor-pointer relative"
                   onClick={() => setPreviewImg(photo)}
                 >
                   <img
                     src={photo.thumbnail_url}
                     alt={photo.original_name}
-                    className="w-full h-full object-cover"
+                    className="masonry-image"
                     loading="lazy"
                   />
-                </div>
 
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end opacity-0 group-hover:opacity-100">
-                  <div className="w-full p-2 bg-gradient-to-t from-black/50 to-transparent">
-                    <button
-                      onClick={() => handleDownload(photo.id, photo.original_name)}
-                      disabled={downloading[photo.id]}
-                      className="w-full py-2 bg-white/90 rounded-lg text-gray-700 hover:bg-white text-xs flex items-center justify-center font-medium disabled:opacity-50"
-                    >
-                      <Download className="w-3.5 h-3.5 mr-1" />
-                      {downloading[photo.id] ? '下载中...' : '下载原图'}
-                    </button>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end opacity-0 group-hover:opacity-100 rounded-xl">
+                    <div className="w-full p-2 bg-gradient-to-t from-black/50 to-transparent rounded-b-xl">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDownload(photo.id, photo.original_name); }}
+                        disabled={downloading[photo.id]}
+                        className="w-full py-2 bg-white/90 rounded-lg text-gray-700 hover:bg-white text-xs flex items-center justify-center font-medium disabled:opacity-50"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1" />
+                        {downloading[photo.id] ? '下载中...' : '下载原图'}
+                      </button>
+                    </div>
                   </div>
+                </div>
+                
+                {/* Photo name and size */}
+                <div className="p-2">
+                  <p className="text-xs text-gray-500 truncate">
+                    {photo.original_name}
+                    {photo.file_size && (
+                      <span className="ml-1.5 text-gray-400">
+                        ({formatFileSize(photo.file_size)})
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
             ))}

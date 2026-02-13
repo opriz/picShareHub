@@ -72,9 +72,11 @@ const apiLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { error: '登录尝试次数过多，请15分钟后再试' },
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 增加到50次，避免正常用户被限制
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '登录尝试次数过多，请稍后再试' },
 });
 
 const uploadLimiter = rateLimit({

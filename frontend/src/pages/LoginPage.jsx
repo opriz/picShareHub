@@ -32,8 +32,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+      <div className="w-full max-w-md mx-auto" style={{ width: '100%', maxWidth: '28rem' }}>
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg mb-4">
             <Camera className="w-8 h-8 text-white" />
@@ -42,7 +42,7 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">摄影师照片分享平台</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8" style={{ width: '100%', maxWidth: '100%' }}>
           <h2 className="text-xl font-semibold text-gray-900 mb-6">登录</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -55,7 +55,8 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
               </div>
@@ -70,7 +71,8 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="输入密码"
-                  className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
                 <button

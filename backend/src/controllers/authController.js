@@ -43,11 +43,11 @@ export async function register(req, res) {
     const { email, password, name } = req.body;
 
     // Check if email already exists
-    const [existing] = await pool.query(
-      'SELECT id FROM users WHERE email = ?',
+    const existingResult = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
       [email]
     );
-    if (existing.length > 0) {
+    if (existingResult.rows.length > 0) {
       return res.status(400).json({ error: '该邮箱已被注册' });
     }
 
@@ -58,12 +58,14 @@ export async function register(req, res) {
     const verificationToken = generateToken();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    // Create user
-    const [result] = await pool.query(
+    // Create user with RETURNING clause to get the inserted ID
+    const result = await pool.query(
       `INSERT INTO users (email, password_hash, name, verification_token, verification_expires)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [email, passwordHash, name, verificationToken, verificationExpires]
     );
+
+    const userId = result.rows[0].id;
 
     // Send verification email
     try {
@@ -73,8 +75,8 @@ export async function register(req, res) {
       // Don't fail registration if email fails - auto verify in dev
       if (process.env.NODE_ENV !== 'production') {
         await pool.query(
-          'UPDATE users SET email_verified = 1 WHERE id = ?',
-          [result.insertId]
+          'UPDATE users SET email_verified = TRUE WHERE id = $1',
+          [userId]
         );
       }
     }
@@ -83,23 +85,25 @@ export async function register(req, res) {
     const isVerified = process.env.NODE_ENV !== 'production' || !process.env.SMTP_HOST;
     if (isVerified) {
       await pool.query(
-        'UPDATE users SET email_verified = 1 WHERE id = ?',
-        [result.insertId]
+        'UPDATE users SET email_verified = TRUE WHERE id = $1',
+        [userId]
       );
     }
 
     const token = signToken({
-      id: result.insertId,
+      id: userId,
       email,
       role: 'photographer',
       name,
     });
 
     res.status(201).json({
-      message: isVerified ? '注册成功' : '注册成功，请查收验证邮件',
+      message: isVerified 
+        ? '注册成功！' 
+        : '注册成功！我们已向您的邮箱发送了验证邮件，请查收并点击链接验证邮箱。验证后即可使用全部功能。',
       token,
       user: {
-        id: result.insertId,
+        id: userId,
         email,
         name,
         role: 'photographer',
@@ -123,15 +127,15 @@ export async function login(req, res) {
     const { email, password } = req.body;
 
     // Find user
-    const [users] = await pool.query(
-      'SELECT * FROM users WHERE email = ?',
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
       [email]
     );
-    if (users.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(401).json({ error: '邮箱或密码错误' });
     }
 
-    const user = users[0];
+    const user = userResult.rows[0];
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -172,18 +176,18 @@ export async function verifyEmail(req, res) {
       return res.status(400).json({ error: '无效的验证链接' });
     }
 
-    const [users] = await pool.query(
-      'SELECT id FROM users WHERE verification_token = ? AND verification_expires > NOW()',
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE verification_token = $1 AND verification_expires > NOW()',
       [token]
     );
 
-    if (users.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(400).json({ error: '验证链接已过期或无效' });
     }
 
     await pool.query(
-      'UPDATE users SET email_verified = 1, verification_token = NULL, verification_expires = NULL WHERE id = ?',
-      [users[0].id]
+      'UPDATE users SET email_verified = TRUE, verification_token = NULL, verification_expires = NULL WHERE id = $1',
+      [userResult.rows[0].id]
     );
 
     res.json({ message: '邮箱验证成功！' });
@@ -196,16 +200,16 @@ export async function verifyEmail(req, res) {
 // Get current user profile
 export async function getProfile(req, res) {
   try {
-    const [users] = await pool.query(
-      'SELECT id, email, name, role, avatar_url, email_verified, created_at FROM users WHERE id = ?',
+    const userResult = await pool.query(
+      'SELECT id, email, name, role, avatar_url, email_verified, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
 
-    if (users.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: '用户不存在' });
     }
 
-    const user = users[0];
+    const user = userResult.rows[0];
     res.json({
       user: {
         id: user.id,
@@ -231,7 +235,7 @@ export async function updateProfile(req, res) {
       return res.status(400).json({ error: '请输入昵称' });
     }
 
-    await pool.query('UPDATE users SET name = ? WHERE id = ?', [
+    await pool.query('UPDATE users SET name = $1 WHERE id = $2', [
       name.trim(),
       req.user.id,
     ]);
@@ -256,18 +260,18 @@ export async function changePassword(req, res) {
       return res.status(400).json({ error: '新密码至少6位' });
     }
 
-    const [users] = await pool.query(
-      'SELECT password_hash FROM users WHERE id = ?',
+    const userResult = await pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
       [req.user.id]
     );
 
-    const isMatch = await bcrypt.compare(currentPassword, users[0].password_hash);
+    const isMatch = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
     if (!isMatch) {
       return res.status(400).json({ error: '当前密码错误' });
     }
 
     const newHash = await bcrypt.hash(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
       newHash,
       req.user.id,
     ]);

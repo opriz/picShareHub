@@ -72,8 +72,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ width: '100%', maxWidth: '100%' }}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">我的影集</h1>
           <p className="text-sm text-gray-500 mt-1">共 {albums.length} 个影集</p>
@@ -81,7 +81,7 @@ export default function DashboardPage() {
         <button
           onClick={handleCreate}
           disabled={creating}
-          className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 text-sm"
+          className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 text-sm w-full sm:w-auto"
         >
           <Plus className="w-4 h-4 mr-1.5" />
           {creating ? '创建中...' : '一键创建影集'}

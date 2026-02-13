@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { albumAPI } from '../utils/api';
+import { formatFileSize } from '../utils/format';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ArrowLeft, Upload, QrCode, Clock, Eye, Download, Image, Trash2,
@@ -234,42 +235,49 @@ export default function AlbumDetailPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="masonry-container">
           {photos.map((photo) => (
             <div
               key={photo.id}
-              className="group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-all"
+              className="masonry-item group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-all"
             >
-              <div className="aspect-square cursor-pointer" onClick={() => setPreviewImg(photo)}>
+              <div className="cursor-pointer relative" onClick={() => setPreviewImg(photo)}>
                 <img
                   src={photo.thumbnail_url}
                   alt={photo.original_name}
-                  className="w-full h-full object-cover"
+                  className="masonry-image"
                   loading="lazy"
                 />
-              </div>
-
-              {/* Overlay actions */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end opacity-0 group-hover:opacity-100">
-                <div className="w-full p-2 flex justify-between bg-gradient-to-t from-black/50 to-transparent">
-                  <button
-                    onClick={() => handleDownload(photo.id, photo.original_name)}
-                    className="p-1.5 bg-white/90 rounded-lg text-gray-700 hover:bg-white text-xs flex items-center"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1" />
-                    下载原图
-                  </button>
-                  <button
-                    onClick={() => handleDeletePhoto(photo.id)}
-                    className="p-1.5 bg-white/90 rounded-lg text-red-500 hover:bg-white"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                
+                {/* Overlay actions */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end opacity-0 group-hover:opacity-100 rounded-xl">
+                  <div className="w-full p-2 flex justify-between bg-gradient-to-t from-black/50 to-transparent rounded-b-xl">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDownload(photo.id, photo.original_name); }}
+                      className="p-1.5 bg-white/90 rounded-lg text-gray-700 hover:bg-white text-xs flex items-center"
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      下载原图
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo.id); }}
+                      className="p-1.5 bg-white/90 rounded-lg text-red-500 hover:bg-white"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="p-2">
-                <p className="text-xs text-gray-500 truncate">{photo.original_name}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {photo.original_name}
+                  {photo.file_size && (
+                    <span className="ml-1.5 text-gray-400">
+                      ({formatFileSize(photo.file_size)})
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
           ))}

@@ -39,10 +39,10 @@ fi
 # Update system
 if [ "$OS" = "debian" ]; then
   apt-get update -qq
-  apt-get install -y -qq curl git nginx mysql-client
+  apt-get install -y -qq curl git nginx postgresql-client
 elif [ "$OS" = "redhat" ]; then
   yum update -y -q
-  yum install -y -q curl git nginx mysql
+  yum install -y -q curl git nginx postgresql
 fi
 
 # Install Node.js 22 if not present
@@ -105,9 +105,9 @@ PORT=3000
 NODE_ENV=production
 JWT_SECRET=${JWT_SECRET}
 
-# Database
+# Database (PostgreSQL)
 DB_HOST=${DB_HOST:-localhost}
-DB_PORT=${DB_PORT:-3306}
+DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
@@ -115,7 +115,7 @@ DB_PASSWORD=${DB_PASSWORD}
 # OSS
 OSS_REGION=${OSS_REGION:-oss-cn-hangzhou}
 OSS_ENDPOINT=${OSS_ENDPOINT:-oss-cn-hangzhou.aliyuncs.com}
-OSS_BUCKET=${OSS_BUCKET:-photo-share-hub-20260212}
+OSS_BUCKET=${OSS_BUCKET:-picshare-photos}
 OSS_ACCESS_KEY_ID=${ALIYUN_AK:-${OSS_ACCESS_KEY_ID:-}}
 OSS_ACCESS_KEY_SECRET=${ALIYUN_SK:-${OSS_ACCESS_KEY_SECRET:-}}
 

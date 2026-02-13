@@ -20,16 +20,16 @@ export async function createAlbum(req, res) {
       expiresAt = getDefaultExpiry(); // 24 hours
     }
 
-    const [result] = await pool.query(
+    const result = await pool.query(
       `INSERT INTO albums (user_id, title, share_code, description, expires_at)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [userId, albumTitle, shareCode, description || null, expiresAt]
     );
 
     res.status(201).json({
       message: '影集创建成功',
       album: {
-        id: result.insertId,
+        id: result.rows[0].id,
         title: albumTitle,
         shareCode,
         description,
@@ -53,24 +53,24 @@ export async function getMyAlbums(req, res) {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const [albums] = await pool.query(
+    const albumsResult = await pool.query(
       `SELECT id, title, share_code, description, cover_url, photo_count,
               view_count, download_count, expires_at, is_expired, created_at
        FROM albums
-       WHERE user_id = ?
+       WHERE user_id = $1
        ORDER BY created_at DESC
-       LIMIT ? OFFSET ?`,
+       LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
     );
 
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM albums WHERE user_id = ?',
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as total FROM albums WHERE user_id = $1',
       [userId]
     );
 
     // Mark expired albums
     const now = new Date();
-    const albumsWithStatus = albums.map((a) => ({
+    const albumsWithStatus = albumsResult.rows.map((a) => ({
       ...a,
       isExpired: a.is_expired || new Date(a.expires_at) < now,
       shareUrl: `${process.env.FRONTEND_URL || ''}/s/${a.share_code}`,
@@ -81,8 +81,8 @@ export async function getMyAlbums(req, res) {
       pagination: {
         page,
         limit,
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
+        total: parseInt(countResult.rows[0].total),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
       },
     });
   } catch (error) {
@@ -97,25 +97,25 @@ export async function getAlbumDetail(req, res) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const [albums] = await pool.query(
+    const albumsResult = await pool.query(
       `SELECT a.*, u.name as photographer_name
        FROM albums a
        JOIN users u ON a.user_id = u.id
-       WHERE a.id = ? AND a.user_id = ?`,
+       WHERE a.id = $1 AND a.user_id = $2`,
       [id, userId]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
-    const album = albums[0];
+    const album = albumsResult.rows[0];
 
     // Get photos
-    const [photos] = await pool.query(
+    const photosResult = await pool.query(
       `SELECT id, original_name, original_url, thumbnail_url, file_size, width, height, download_count, created_at
        FROM photos
-       WHERE album_id = ?
+       WHERE album_id = $1
        ORDER BY sort_order ASC, created_at ASC`,
       [id]
     );
@@ -126,7 +126,7 @@ export async function getAlbumDetail(req, res) {
         isExpired: album.is_expired || new Date(album.expires_at) < new Date(),
         shareUrl: `${process.env.FRONTEND_URL || ''}/s/${album.share_code}`,
       },
-      photos,
+      photos: photosResult.rows,
     });
   } catch (error) {
     console.error('Get album detail error:', error);
@@ -142,31 +142,32 @@ export async function updateAlbum(req, res) {
     const { title, description, expiresInHours } = req.body;
 
     // Verify ownership
-    const [albums] = await pool.query(
-      'SELECT id FROM albums WHERE id = ? AND user_id = ?',
+    const albumsResult = await pool.query(
+      'SELECT id FROM albums WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
     const updates = [];
     const values = [];
+    let paramIndex = 1;
 
     if (title) {
-      updates.push('title = ?');
+      updates.push(`title = $${paramIndex++}`);
       values.push(title);
     }
     if (description !== undefined) {
-      updates.push('description = ?');
+      updates.push(`description = $${paramIndex++}`);
       values.push(description);
     }
     if (expiresInHours) {
       const newExpiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
-      updates.push('expires_at = ?');
+      updates.push(`expires_at = $${paramIndex++}`);
       values.push(newExpiry);
-      updates.push('is_expired = 0');
+      updates.push('is_expired = FALSE');
     }
 
     if (updates.length === 0) {
@@ -175,7 +176,7 @@ export async function updateAlbum(req, res) {
 
     values.push(id);
     await pool.query(
-      `UPDATE albums SET ${updates.join(', ')} WHERE id = ?`,
+      `UPDATE albums SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
       values
     );
 
@@ -193,25 +194,25 @@ export async function deleteAlbum(req, res) {
     const userId = req.user.id;
 
     // Get album with photos
-    const [albums] = await pool.query(
-      'SELECT id FROM albums WHERE id = ? AND user_id = ?',
+    const albumsResult = await pool.query(
+      'SELECT id FROM albums WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
     // Get all photos to delete from OSS
-    const [photos] = await pool.query(
-      'SELECT oss_key, thumbnail_oss_key FROM photos WHERE album_id = ?',
+    const photosResult = await pool.query(
+      'SELECT oss_key, thumbnail_oss_key FROM photos WHERE album_id = $1',
       [id]
     );
 
     // Delete from OSS
     try {
       const oss = getOSSClient();
-      const keys = photos.flatMap((p) => [p.oss_key, p.thumbnail_oss_key]);
+      const keys = photosResult.rows.flatMap((p) => [p.oss_key, p.thumbnail_oss_key]);
       if (keys.length > 0) {
         await oss.deleteMulti(keys);
       }
@@ -221,7 +222,7 @@ export async function deleteAlbum(req, res) {
     }
 
     // Delete from DB (cascade will handle photos and logs)
-    await pool.query('DELETE FROM albums WHERE id = ?', [id]);
+    await pool.query('DELETE FROM albums WHERE id = $1', [id]);
 
     res.json({ message: '影集已删除' });
   } catch (error) {
@@ -236,16 +237,16 @@ export async function getAlbumQRCode(req, res) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const [albums] = await pool.query(
-      'SELECT share_code FROM albums WHERE id = ? AND user_id = ?',
+    const albumsResult = await pool.query(
+      'SELECT share_code FROM albums WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
-    const shareUrl = `${process.env.FRONTEND_URL || 'https://www.picshare.com.cn'}/s/${albums[0].share_code}`;
+    const shareUrl = `${process.env.FRONTEND_URL || 'https://www.picshare.com.cn'}/s/${albumsResult.rows[0].share_code}`;
 
     // Generate QR code as data URL
     const qrDataUrl = await QRCode.toDataURL(shareUrl, {
@@ -260,7 +261,7 @@ export async function getAlbumQRCode(req, res) {
     res.json({
       qrCode: qrDataUrl,
       shareUrl,
-      shareCode: albums[0].share_code,
+      shareCode: albumsResult.rows[0].share_code,
     });
   } catch (error) {
     console.error('QR code error:', error);
@@ -273,19 +274,19 @@ export async function viewAlbumByShareCode(req, res) {
   try {
     const { shareCode } = req.params;
 
-    const [albums] = await pool.query(
+    const albumsResult = await pool.query(
       `SELECT a.*, u.name as photographer_name
        FROM albums a
        JOIN users u ON a.user_id = u.id
-       WHERE a.share_code = ?`,
+       WHERE a.share_code = $1`,
       [shareCode]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在或链接无效' });
     }
 
-    const album = albums[0];
+    const album = albumsResult.rows[0];
 
     // Check if expired
     if (album.is_expired || new Date(album.expires_at) < new Date()) {
@@ -294,22 +295,22 @@ export async function viewAlbumByShareCode(req, res) {
 
     // Increment view count
     await pool.query(
-      'UPDATE albums SET view_count = view_count + 1 WHERE id = ?',
+      'UPDATE albums SET view_count = view_count + 1 WHERE id = $1',
       [album.id]
     );
 
     // Log access
     await pool.query(
       `INSERT INTO album_access_logs (album_id, ip_address, user_agent, action)
-       VALUES (?, ?, ?, 'view')`,
+       VALUES ($1, $2, $3, 'view')`,
       [album.id, req.ip, req.headers['user-agent'] || '']
     );
 
     // Get photos (only thumbnails for initial load)
-    const [photos] = await pool.query(
+    const photosResult = await pool.query(
       `SELECT id, original_name, thumbnail_url, file_size, width, height
        FROM photos
-       WHERE album_id = ?
+       WHERE album_id = $1
        ORDER BY sort_order ASC, created_at ASC`,
       [album.id]
     );
@@ -324,7 +325,7 @@ export async function viewAlbumByShareCode(req, res) {
         createdAt: album.created_at,
         expiresAt: album.expires_at,
       },
-      photos,
+      photos: photosResult.rows,
     });
   } catch (error) {
     console.error('View album error:', error);
@@ -338,50 +339,50 @@ export async function downloadPhoto(req, res) {
     const { shareCode, photoId } = req.params;
 
     // Verify album exists and not expired
-    const [albums] = await pool.query(
-      'SELECT id, is_expired, expires_at FROM albums WHERE share_code = ?',
+    const albumsResult = await pool.query(
+      'SELECT id, is_expired, expires_at FROM albums WHERE share_code = $1',
       [shareCode]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
-    const album = albums[0];
+    const album = albumsResult.rows[0];
     if (album.is_expired || new Date(album.expires_at) < new Date()) {
       return res.status(410).json({ error: '该影集已过期' });
     }
 
     // Get photo
-    const [photos] = await pool.query(
-      'SELECT id, original_url, original_name FROM photos WHERE id = ? AND album_id = ?',
+    const photosResult = await pool.query(
+      'SELECT id, original_url, original_name FROM photos WHERE id = $1 AND album_id = $2',
       [photoId, album.id]
     );
 
-    if (photos.length === 0) {
+    if (photosResult.rows.length === 0) {
       return res.status(404).json({ error: '照片不存在' });
     }
 
     // Increment download count
     await pool.query(
-      'UPDATE photos SET download_count = download_count + 1 WHERE id = ?',
+      'UPDATE photos SET download_count = download_count + 1 WHERE id = $1',
       [photoId]
     );
     await pool.query(
-      'UPDATE albums SET download_count = download_count + 1 WHERE id = ?',
+      'UPDATE albums SET download_count = download_count + 1 WHERE id = $1',
       [album.id]
     );
 
     // Log download
     await pool.query(
       `INSERT INTO album_access_logs (album_id, ip_address, user_agent, action, photo_id)
-       VALUES (?, ?, ?, 'download', ?)`,
+       VALUES ($1, $2, $3, 'download', $4)`,
       [album.id, req.ip, req.headers['user-agent'] || '', photoId]
     );
 
     res.json({
-      downloadUrl: photos[0].original_url,
-      fileName: photos[0].original_name,
+      downloadUrl: photosResult.rows[0].original_url,
+      fileName: photosResult.rows[0].original_name,
     });
   } catch (error) {
     console.error('Download photo error:', error);

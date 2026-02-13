@@ -17,16 +17,16 @@ export async function uploadPhotos(req, res) {
     }
 
     // Verify album ownership
-    const [albums] = await pool.query(
-      'SELECT id, is_expired, expires_at FROM albums WHERE id = ? AND user_id = ?',
+    const albumsResult = await pool.query(
+      'SELECT id, is_expired, expires_at FROM albums WHERE id = $1 AND user_id = $2',
       [albumId, userId]
     );
 
-    if (albums.length === 0) {
+    if (albumsResult.rows.length === 0) {
       return res.status(404).json({ error: '影集不存在' });
     }
 
-    if (albums[0].is_expired || new Date(albums[0].expires_at) < new Date()) {
+    if (albumsResult.rows[0].is_expired || new Date(albumsResult.rows[0].expires_at) < new Date()) {
       return res.status(400).json({ error: '影集已过期，无法上传' });
     }
 
@@ -74,11 +74,11 @@ export async function uploadPhotos(req, res) {
         const originalUrl = `${baseUrl}/${originalKey}`;
         const thumbnailUrl = `${baseUrl}/${thumbnailKey}`;
 
-        // Save to DB
-        const [result] = await pool.query(
+        // Save to DB with RETURNING clause
+        const result = await pool.query(
           `INSERT INTO photos (album_id, user_id, original_name, original_url, thumbnail_url,
             oss_key, thumbnail_oss_key, file_size, width, height, mime_type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
           [
             albumId,
             userId,
@@ -95,7 +95,7 @@ export async function uploadPhotos(req, res) {
         );
 
         uploadedPhotos.push({
-          id: result.insertId,
+          id: result.rows[0].id,
           originalName: file.originalname,
           thumbnailUrl,
           originalUrl,
@@ -113,9 +113,9 @@ export async function uploadPhotos(req, res) {
     if (uploadedPhotos.length > 0) {
       await pool.query(
         `UPDATE albums SET
-          photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = ?),
-          cover_url = COALESCE(cover_url, ?)
-        WHERE id = ?`,
+          photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = $1),
+          cover_url = COALESCE(cover_url, $2)
+        WHERE id = $3`,
         [albumId, uploadedPhotos[0].thumbnailUrl, albumId]
       );
     }
@@ -138,32 +138,32 @@ export async function deletePhoto(req, res) {
     const userId = req.user.id;
 
     // Verify ownership
-    const [photos] = await pool.query(
+    const photosResult = await pool.query(
       `SELECT p.oss_key, p.thumbnail_oss_key
        FROM photos p
        JOIN albums a ON p.album_id = a.id
-       WHERE p.id = ? AND p.album_id = ? AND a.user_id = ?`,
+       WHERE p.id = $1 AND p.album_id = $2 AND a.user_id = $3`,
       [photoId, albumId, userId]
     );
 
-    if (photos.length === 0) {
+    if (photosResult.rows.length === 0) {
       return res.status(404).json({ error: '照片不存在' });
     }
 
     // Delete from OSS
     try {
       const oss = getOSSClient();
-      await oss.deleteMulti([photos[0].oss_key, photos[0].thumbnail_oss_key]);
+      await oss.deleteMulti([photosResult.rows[0].oss_key, photosResult.rows[0].thumbnail_oss_key]);
     } catch (ossErr) {
       console.error('OSS delete error:', ossErr);
     }
 
     // Delete from DB
-    await pool.query('DELETE FROM photos WHERE id = ?', [photoId]);
+    await pool.query('DELETE FROM photos WHERE id = $1', [photoId]);
 
     // Update album count
     await pool.query(
-      `UPDATE albums SET photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = ?) WHERE id = ?`,
+      `UPDATE albums SET photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = $1) WHERE id = $2`,
       [albumId, albumId]
     );
 
@@ -180,21 +180,21 @@ export async function getPhotoOriginal(req, res) {
     const { albumId, photoId } = req.params;
     const userId = req.user.id;
 
-    const [photos] = await pool.query(
+    const photosResult = await pool.query(
       `SELECT p.original_url, p.original_name
        FROM photos p
        JOIN albums a ON p.album_id = a.id
-       WHERE p.id = ? AND p.album_id = ? AND a.user_id = ?`,
+       WHERE p.id = $1 AND p.album_id = $2 AND a.user_id = $3`,
       [photoId, albumId, userId]
     );
 
-    if (photos.length === 0) {
+    if (photosResult.rows.length === 0) {
       return res.status(404).json({ error: '照片不存在' });
     }
 
     res.json({
-      downloadUrl: photos[0].original_url,
-      fileName: photos[0].original_name,
+      downloadUrl: photosResult.rows[0].original_url,
+      fileName: photosResult.rows[0].original_name,
     });
   } catch (error) {
     console.error('Get photo original error:', error);

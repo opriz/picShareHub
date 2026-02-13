@@ -9,35 +9,35 @@ async function cleanupExpiredAlbums() {
 
   try {
     // Find expired albums
-    const [expiredAlbums] = await pool.query(
+    const expiredResult = await pool.query(
       `SELECT id FROM albums
-       WHERE (is_expired = 0 AND expires_at <= NOW())
-       OR (is_expired = 1 AND expires_at <= DATE_SUB(NOW(), INTERVAL 1 DAY))` // Give 1 extra day before deleting data
+       WHERE (is_expired = FALSE AND expires_at <= NOW())
+       OR (is_expired = TRUE AND expires_at <= NOW() - INTERVAL '1 day')` // Give 1 extra day before deleting data
     );
 
-    if (expiredAlbums.length === 0) {
+    if (expiredResult.rows.length === 0) {
       console.log('No expired albums found.');
       return;
     }
 
-    console.log(`Found ${expiredAlbums.length} expired album(s)`);
+    console.log(`Found ${expiredResult.rows.length} expired album(s)`);
 
     // First, mark newly expired albums
     await pool.query(
-      'UPDATE albums SET is_expired = 1 WHERE is_expired = 0 AND expires_at <= NOW()'
+      'UPDATE albums SET is_expired = TRUE WHERE is_expired = FALSE AND expires_at <= NOW()'
     );
 
     // Delete albums that have been expired for over 1 day (including their OSS files)
-    const [toDelete] = await pool.query(
+    const toDeleteResult = await pool.query(
       `SELECT a.id, p.oss_key, p.thumbnail_oss_key
        FROM albums a
        LEFT JOIN photos p ON p.album_id = a.id
-       WHERE a.is_expired = 1 AND a.expires_at <= DATE_SUB(NOW(), INTERVAL 1 DAY)`
+       WHERE a.is_expired = TRUE AND a.expires_at <= NOW() - INTERVAL '1 day'`
     );
 
-    if (toDelete.length > 0) {
+    if (toDeleteResult.rows.length > 0) {
       // Collect OSS keys
-      const ossKeys = toDelete
+      const ossKeys = toDeleteResult.rows
         .filter((r) => r.oss_key)
         .flatMap((r) => [r.oss_key, r.thumbnail_oss_key]);
 
@@ -57,9 +57,9 @@ async function cleanupExpiredAlbums() {
       }
 
       // Get unique album IDs to delete
-      const albumIds = [...new Set(toDelete.map((r) => r.id))];
+      const albumIds = [...new Set(toDeleteResult.rows.map((r) => r.id))];
       for (const albumId of albumIds) {
-        await pool.query('DELETE FROM albums WHERE id = ?', [albumId]);
+        await pool.query('DELETE FROM albums WHERE id = $1', [albumId]);
       }
       console.log(`Deleted ${albumIds.length} expired album(s) from database`);
     }

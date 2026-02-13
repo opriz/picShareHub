@@ -3,43 +3,43 @@ import pool from '../config/database.js';
 // Get dashboard stats
 export async function getDashboardStats(req, res) {
   try {
-    const [userCount] = await pool.query(
+    const userCountResult = await pool.query(
       "SELECT COUNT(*) as count FROM users WHERE role = 'photographer'"
     );
-    const [albumCount] = await pool.query(
+    const albumCountResult = await pool.query(
       'SELECT COUNT(*) as count FROM albums'
     );
-    const [activeAlbumCount] = await pool.query(
-      'SELECT COUNT(*) as count FROM albums WHERE is_expired = 0 AND expires_at > NOW()'
+    const activeAlbumCountResult = await pool.query(
+      "SELECT COUNT(*) as count FROM albums WHERE is_expired = FALSE AND expires_at > NOW()"
     );
-    const [photoCount] = await pool.query(
+    const photoCountResult = await pool.query(
       'SELECT COUNT(*) as count FROM photos'
     );
-    const [totalViews] = await pool.query(
+    const totalViewsResult = await pool.query(
       'SELECT COALESCE(SUM(view_count), 0) as total FROM albums'
     );
-    const [totalDownloads] = await pool.query(
+    const totalDownloadsResult = await pool.query(
       'SELECT COALESCE(SUM(download_count), 0) as total FROM albums'
     );
 
     // Recent activity (last 7 days)
-    const [recentAlbums] = await pool.query(
-      'SELECT COUNT(*) as count FROM albums WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)'
+    const recentAlbumsResult = await pool.query(
+      "SELECT COUNT(*) as count FROM albums WHERE created_at > NOW() - INTERVAL '7 days'"
     );
-    const [recentUsers] = await pool.query(
-      'SELECT COUNT(*) as count FROM users WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)'
+    const recentUsersResult = await pool.query(
+      "SELECT COUNT(*) as count FROM users WHERE created_at > NOW() - INTERVAL '7 days'"
     );
 
     res.json({
       stats: {
-        totalUsers: userCount[0].count,
-        totalAlbums: albumCount[0].count,
-        activeAlbums: activeAlbumCount[0].count,
-        totalPhotos: photoCount[0].count,
-        totalViews: totalViews[0].total,
-        totalDownloads: totalDownloads[0].total,
-        recentAlbums: recentAlbums[0].count,
-        recentUsers: recentUsers[0].count,
+        totalUsers: parseInt(userCountResult.rows[0].count),
+        totalAlbums: parseInt(albumCountResult.rows[0].count),
+        activeAlbums: parseInt(activeAlbumCountResult.rows[0].count),
+        totalPhotos: parseInt(photoCountResult.rows[0].count),
+        totalViews: parseInt(totalViewsResult.rows[0].total),
+        totalDownloads: parseInt(totalDownloadsResult.rows[0].total),
+        recentAlbums: parseInt(recentAlbumsResult.rows[0].count),
+        recentUsers: parseInt(recentUsersResult.rows[0].count),
       },
     });
   } catch (error) {
@@ -55,7 +55,7 @@ export async function getAllUsers(req, res) {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const [users] = await pool.query(
+    const usersResult = await pool.query(
       `SELECT u.id, u.email, u.name, u.role, u.email_verified, u.created_at,
               COUNT(DISTINCT a.id) as album_count,
               COALESCE(SUM(a.photo_count), 0) as total_photos,
@@ -66,21 +66,21 @@ export async function getAllUsers(req, res) {
        WHERE u.role = 'photographer'
        GROUP BY u.id
        ORDER BY u.created_at DESC
-       LIMIT ? OFFSET ?`,
+       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
-    const [countResult] = await pool.query(
+    const countResult = await pool.query(
       "SELECT COUNT(*) as total FROM users WHERE role = 'photographer'"
     );
 
     res.json({
-      users,
+      users: usersResult.rows,
       pagination: {
         page,
         limit,
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
+        total: parseInt(countResult.rows[0].total),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
       },
     });
   } catch (error) {
@@ -97,23 +97,23 @@ export async function getUserAlbums(req, res) {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const [albums] = await pool.query(
+    const albumsResult = await pool.query(
       `SELECT id, title, share_code, photo_count, view_count, download_count,
               expires_at, is_expired, created_at
        FROM albums
-       WHERE user_id = ?
+       WHERE user_id = $1
        ORDER BY created_at DESC
-       LIMIT ? OFFSET ?`,
+       LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
     );
 
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM albums WHERE user_id = ?',
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as total FROM albums WHERE user_id = $1',
       [userId]
     );
 
     const now = new Date();
-    const albumsWithStatus = albums.map((a) => ({
+    const albumsWithStatus = albumsResult.rows.map((a) => ({
       ...a,
       isExpired: a.is_expired || new Date(a.expires_at) < now,
     }));
@@ -123,8 +123,8 @@ export async function getUserAlbums(req, res) {
       pagination: {
         page,
         limit,
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
+        total: parseInt(countResult.rows[0].total),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
       },
     });
   } catch (error) {
@@ -143,28 +143,28 @@ export async function getAllAlbums(req, res) {
 
     let whereClause = '';
     if (status === 'active') {
-      whereClause = 'WHERE a.is_expired = 0 AND a.expires_at > NOW()';
+      whereClause = "WHERE a.is_expired = FALSE AND a.expires_at > NOW()";
     } else if (status === 'expired') {
-      whereClause = 'WHERE a.is_expired = 1 OR a.expires_at <= NOW()';
+      whereClause = "WHERE a.is_expired = TRUE OR a.expires_at <= NOW()";
     }
 
-    const [albums] = await pool.query(
+    const albumsResult = await pool.query(
       `SELECT a.id, a.title, a.share_code, a.photo_count, a.view_count, a.download_count,
               a.expires_at, a.is_expired, a.created_at, u.name as photographer_name, u.email as photographer_email
        FROM albums a
        JOIN users u ON a.user_id = u.id
        ${whereClause}
        ORDER BY a.created_at DESC
-       LIMIT ? OFFSET ?`,
+       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
-    const [countResult] = await pool.query(
+    const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM albums a ${whereClause}`
     );
 
     const now = new Date();
-    const albumsWithStatus = albums.map((a) => ({
+    const albumsWithStatus = albumsResult.rows.map((a) => ({
       ...a,
       isExpired: a.is_expired || new Date(a.expires_at) < now,
     }));
@@ -174,8 +174,8 @@ export async function getAllAlbums(req, res) {
       pagination: {
         page,
         limit,
-        total: countResult[0].total,
-        totalPages: Math.ceil(countResult[0].total / limit),
+        total: parseInt(countResult.rows[0].total),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
       },
     });
   } catch (error) {
@@ -189,16 +189,16 @@ export async function getAlbumLogs(req, res) {
   try {
     const { albumId } = req.params;
 
-    const [logs] = await pool.query(
+    const logsResult = await pool.query(
       `SELECT action, ip_address, created_at
        FROM album_access_logs
-       WHERE album_id = ?
+       WHERE album_id = $1
        ORDER BY created_at DESC
        LIMIT 100`,
       [albumId]
     );
 
-    res.json({ logs });
+    res.json({ logs: logsResult.rows });
   } catch (error) {
     console.error('Get album logs error:', error);
     res.status(500).json({ error: '获取访问日志失败' });

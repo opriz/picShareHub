@@ -36,7 +36,13 @@ export default function RegisterPage() {
       const successMessage = result.message || (result.emailVerified 
         ? '注册成功！' 
         : '注册成功！请查收邮箱验证邮件，验证后即可使用全部功能。');
-      toast.success(successMessage, { duration: 5000 });
+      toast.success(successMessage, { 
+        duration: 6000,
+        style: {
+          maxWidth: '90vw',
+          wordBreak: 'break-word',
+        }
+      });
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || '注册失败');
@@ -46,8 +52,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4 py-12">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4 py-12" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+      <div className="w-full max-w-md mx-auto" style={{ width: '100%', maxWidth: '28rem' }}>
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg mb-4">
             <Camera className="w-8 h-8 text-white" />
@@ -56,7 +62,7 @@ export default function RegisterPage() {
           <p className="text-gray-500 mt-1">创建你的摄影师账号</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8" style={{ width: '100%', maxWidth: '100%' }}>
           <h2 className="text-xl font-semibold text-gray-900 mb-6">注册</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -69,7 +75,8 @@ export default function RegisterPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="你的名字"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
               </div>
@@ -84,7 +91,8 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
               </div>
@@ -99,7 +107,8 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="至少6位，含字母和数字"
-                  className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
                 <button
@@ -121,7 +130,8 @@ export default function RegisterPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="再次输入密码"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  style={{ fontSize: '16px' }}
                   required
                 />
               </div>
