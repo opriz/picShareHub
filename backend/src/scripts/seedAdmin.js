@@ -6,7 +6,7 @@ dotenv.config();
 
 async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL || 'admin@picshare.com.cn';
-  const password = process.env.ADMIN_PASSWORD || 'Admin123456!';
+  const password = process.env.ADMIN_PASSWORD || 'Admin2026Secure';
   const name = 'System Admin';
 
   console.log('🔧 Creating admin account...');
@@ -26,8 +26,8 @@ async function seedAdmin() {
     const passwordHash = await bcrypt.hash(password, 12);
 
     await pool.query(
-      'INSERT INTO users (email, password_hash, name, role, email_verified) VALUES (?, ?, ?, ?, ?)',
-      [email, passwordHash, name, 'admin', 1]
+      'INSERT INTO users (email, password_hash, name, role, email_verified) VALUES (?, ?, ?, ?, ?) RETURNING id',
+      [email, passwordHash, name, 'admin', true]
     );
 
     console.log(`✅ Admin account created successfully!`);

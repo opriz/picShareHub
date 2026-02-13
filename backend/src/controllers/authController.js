@@ -61,7 +61,7 @@ export async function register(req, res) {
     // Create user
     const [result] = await pool.query(
       `INSERT INTO users (email, password_hash, name, verification_token, verification_expires)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
       [email, passwordHash, name, verificationToken, verificationExpires]
     );
 
@@ -73,7 +73,7 @@ export async function register(req, res) {
       // Don't fail registration if email fails - auto verify in dev
       if (process.env.NODE_ENV !== 'production') {
         await pool.query(
-          'UPDATE users SET email_verified = 1 WHERE id = ?',
+          'UPDATE users SET email_verified = TRUE WHERE id = ?',
           [result.insertId]
         );
       }
@@ -83,7 +83,7 @@ export async function register(req, res) {
     const isVerified = process.env.NODE_ENV !== 'production' || !process.env.SMTP_HOST;
     if (isVerified) {
       await pool.query(
-        'UPDATE users SET email_verified = 1 WHERE id = ?',
+        'UPDATE users SET email_verified = TRUE WHERE id = ?',
         [result.insertId]
       );
     }
@@ -182,7 +182,7 @@ export async function verifyEmail(req, res) {
     }
 
     await pool.query(
-      'UPDATE users SET email_verified = 1, verification_token = NULL, verification_expires = NULL WHERE id = ?',
+      'UPDATE users SET email_verified = TRUE, verification_token = NULL, verification_expires = NULL WHERE id = ?',
       [users[0].id]
     );
 

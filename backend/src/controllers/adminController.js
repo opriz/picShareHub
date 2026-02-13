@@ -10,7 +10,7 @@ export async function getDashboardStats(req, res) {
       'SELECT COUNT(*) as count FROM albums'
     );
     const [activeAlbumCount] = await pool.query(
-      'SELECT COUNT(*) as count FROM albums WHERE is_expired = 0 AND expires_at > NOW()'
+      'SELECT COUNT(*) as count FROM albums WHERE is_expired = FALSE AND expires_at > NOW()'
     );
     const [photoCount] = await pool.query(
       'SELECT COUNT(*) as count FROM photos'
@@ -24,10 +24,10 @@ export async function getDashboardStats(req, res) {
 
     // Recent activity (last 7 days)
     const [recentAlbums] = await pool.query(
-      'SELECT COUNT(*) as count FROM albums WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)'
+      "SELECT COUNT(*) as count FROM albums WHERE created_at > NOW() - INTERVAL '7 days'"
     );
     const [recentUsers] = await pool.query(
-      'SELECT COUNT(*) as count FROM users WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)'
+      "SELECT COUNT(*) as count FROM users WHERE created_at > NOW() - INTERVAL '7 days'"
     );
 
     res.json({
@@ -143,9 +143,9 @@ export async function getAllAlbums(req, res) {
 
     let whereClause = '';
     if (status === 'active') {
-      whereClause = 'WHERE a.is_expired = 0 AND a.expires_at > NOW()';
+      whereClause = 'WHERE a.is_expired = FALSE AND a.expires_at > NOW()';
     } else if (status === 'expired') {
-      whereClause = 'WHERE a.is_expired = 1 OR a.expires_at <= NOW()';
+      whereClause = 'WHERE a.is_expired = TRUE OR a.expires_at <= NOW()';
     }
 
     const [albums] = await pool.query(
@@ -202,5 +202,70 @@ export async function getAlbumLogs(req, res) {
   } catch (error) {
     console.error('Get album logs error:', error);
     res.status(500).json({ error: '获取访问日志失败' });
+  }
+}
+
+// Admin: View any album detail (no stats increment)
+export async function adminViewAlbum(req, res) {
+  try {
+    const { albumId } = req.params;
+
+    const [albums] = await pool.query(
+      `SELECT a.*, u.name as photographer_name, u.email as photographer_email
+       FROM albums a
+       JOIN users u ON a.user_id = u.id
+       WHERE a.id = ?`,
+      [albumId]
+    );
+
+    if (albums.length === 0) {
+      return res.status(404).json({ error: '影集不存在' });
+    }
+
+    const album = albums[0];
+
+    const [photos] = await pool.query(
+      `SELECT id, original_name, original_url, thumbnail_url, file_size, width, height, download_count, created_at
+       FROM photos
+       WHERE album_id = ?
+       ORDER BY sort_order ASC, created_at ASC`,
+      [albumId]
+    );
+
+    res.json({
+      album: {
+        ...album,
+        isExpired: album.is_expired || new Date(album.expires_at) < new Date(),
+        shareUrl: `${process.env.FRONTEND_URL || ''}/s/${album.share_code}`,
+      },
+      photos,
+    });
+  } catch (error) {
+    console.error('Admin view album error:', error);
+    res.status(500).json({ error: '获取影集详情失败' });
+  }
+}
+
+// Admin: Download photo without incrementing stats
+export async function adminDownloadPhoto(req, res) {
+  try {
+    const { albumId, photoId } = req.params;
+
+    const [photos] = await pool.query(
+      'SELECT original_url, original_name FROM photos WHERE id = ? AND album_id = ?',
+      [photoId, albumId]
+    );
+
+    if (photos.length === 0) {
+      return res.status(404).json({ error: '照片不存在' });
+    }
+
+    res.json({
+      downloadUrl: photos[0].original_url,
+      fileName: photos[0].original_name,
+    });
+  } catch (error) {
+    console.error('Admin download photo error:', error);
+    res.status(500).json({ error: '获取下载链接失败' });
   }
 }

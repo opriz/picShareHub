@@ -8,32 +8,28 @@ async function cleanupExpiredAlbums() {
   console.log(`[${new Date().toISOString()}] Starting expired albums cleanup...`);
 
   try {
-    // Find expired albums
-    const [expiredAlbums] = await pool.query(
-      `SELECT id FROM albums
-       WHERE (is_expired = 0 AND expires_at <= NOW())
-       OR (is_expired = 1 AND expires_at <= DATE_SUB(NOW(), INTERVAL 1 DAY))` // Give 1 extra day before deleting data
+    // Step 1: Mark albums as expired (but don't delete yet)
+    const [marked] = await pool.query(
+      'UPDATE albums SET is_expired = TRUE WHERE is_expired = FALSE AND expires_at <= NOW()'
     );
-
-    if (expiredAlbums.length === 0) {
-      console.log('No expired albums found.');
-      return;
+    if (marked.affectedRows > 0) {
+      console.log(`Marked ${marked.affectedRows} album(s) as expired`);
     }
 
-    console.log(`Found ${expiredAlbums.length} expired album(s)`);
-
-    // First, mark newly expired albums
-    await pool.query(
-      'UPDATE albums SET is_expired = 1 WHERE is_expired = 0 AND expires_at <= NOW()'
-    );
-
-    // Delete albums that have been expired for over 1 day (including their OSS files)
+    // Step 2: Only delete albums expired for over 7 days (generous grace period)
     const [toDelete] = await pool.query(
       `SELECT a.id, p.oss_key, p.thumbnail_oss_key
        FROM albums a
        LEFT JOIN photos p ON p.album_id = a.id
-       WHERE a.is_expired = 1 AND a.expires_at <= DATE_SUB(NOW(), INTERVAL 1 DAY)`
+       WHERE a.is_expired = TRUE AND a.expires_at <= NOW() - INTERVAL '7 days'`
     );
+
+    if (toDelete.length === 0) {
+      console.log('No albums to clean up.');
+      return;
+    }
+
+    console.log(`Found ${toDelete.length} row(s) to clean (expired > 7 days)`);
 
     if (toDelete.length > 0) {
       // Collect OSS keys

@@ -78,7 +78,7 @@ export async function uploadPhotos(req, res) {
         const [result] = await pool.query(
           `INSERT INTO photos (album_id, user_id, original_name, original_url, thumbnail_url,
             oss_key, thumbnail_oss_key, file_size, width, height, mime_type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
           [
             albumId,
             userId,

@@ -22,7 +22,7 @@ export async function createAlbum(req, res) {
 
     const [result] = await pool.query(
       `INSERT INTO albums (user_id, title, share_code, description, expires_at)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
       [userId, albumTitle, shareCode, description || null, expiresAt]
     );
 
@@ -166,7 +166,7 @@ export async function updateAlbum(req, res) {
       const newExpiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
       updates.push('expires_at = ?');
       values.push(newExpiry);
-      updates.push('is_expired = 0');
+      updates.push('is_expired = FALSE');
     }
 
     if (updates.length === 0) {
@@ -286,11 +286,7 @@ export async function viewAlbumByShareCode(req, res) {
     }
 
     const album = albums[0];
-
-    // Check if expired
-    if (album.is_expired || new Date(album.expires_at) < new Date()) {
-      return res.status(410).json({ error: '该影集已过期' });
-    }
+    const isExpired = album.is_expired || new Date(album.expires_at) < new Date();
 
     // Increment view count
     await pool.query(
@@ -323,6 +319,7 @@ export async function viewAlbumByShareCode(req, res) {
         photoCount: album.photo_count,
         createdAt: album.created_at,
         expiresAt: album.expires_at,
+        isExpired: isExpired,
       },
       photos,
     });
@@ -337,7 +334,7 @@ export async function downloadPhoto(req, res) {
   try {
     const { shareCode, photoId } = req.params;
 
-    // Verify album exists and not expired
+    // Verify album exists
     const [albums] = await pool.query(
       'SELECT id, is_expired, expires_at FROM albums WHERE share_code = ?',
       [shareCode]
@@ -348,9 +345,6 @@ export async function downloadPhoto(req, res) {
     }
 
     const album = albums[0];
-    if (album.is_expired || new Date(album.expires_at) < new Date()) {
-      return res.status(410).json({ error: '该影集已过期' });
-    }
 
     // Get photo
     const [photos] = await pool.query(

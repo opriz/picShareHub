@@ -73,6 +73,8 @@ export const adminAPI = {
   getUserAlbums: (userId, page = 1) => api.get(`/admin/users/${userId}/albums?page=${page}`),
   getAllAlbums: (page = 1, status = 'all') => api.get(`/admin/albums?page=${page}&status=${status}`),
   getAlbumLogs: (albumId) => api.get(`/admin/albums/${albumId}/logs`),
+  viewAlbum: (albumId) => api.get(`/admin/albums/${albumId}/detail`),
+  downloadPhoto: (albumId, photoId) => api.get(`/admin/albums/${albumId}/photos/${photoId}/download`),
 };
 
 export default api;

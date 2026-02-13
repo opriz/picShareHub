@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -6,27 +6,28 @@ dotenv.config();
 const SQL_STATEMENTS = [
   // Users table
   `CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
-    role ENUM('photographer', 'admin') DEFAULT 'photographer',
-    email_verified TINYINT(1) DEFAULT 0,
+    role VARCHAR(20) DEFAULT 'photographer' CHECK (role IN ('photographer', 'admin')),
+    email_verified BOOLEAN DEFAULT FALSE,
     verification_token VARCHAR(255) DEFAULT NULL,
-    verification_expires DATETIME DEFAULT NULL,
+    verification_expires TIMESTAMP DEFAULT NULL,
     reset_token VARCHAR(255) DEFAULT NULL,
-    reset_expires DATETIME DEFAULT NULL,
+    reset_expires TIMESTAMP DEFAULT NULL,
     avatar_url VARCHAR(500) DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_email (email),
-    INDEX idx_role (role)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+  `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`,
 
   // Albums table
   `CREATE TABLE IF NOT EXISTS albums (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     share_code VARCHAR(32) NOT NULL UNIQUE,
     description TEXT DEFAULT NULL,
@@ -34,22 +35,21 @@ const SQL_STATEMENTS = [
     photo_count INT DEFAULT 0,
     view_count INT DEFAULT 0,
     download_count INT DEFAULT 0,
-    expires_at DATETIME NOT NULL,
-    is_expired TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_share_code (share_code),
-    INDEX idx_expires_at (expires_at),
-    INDEX idx_is_expired (is_expired)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    expires_at TIMESTAMP NOT NULL,
+    is_expired BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_albums_user_id ON albums(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_albums_share_code ON albums(share_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_albums_expires_at ON albums(expires_at)`,
 
   // Photos table
   `CREATE TABLE IF NOT EXISTS photos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    album_id INT NOT NULL,
-    user_id INT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    album_id INT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     original_name VARCHAR(255) NOT NULL,
     original_url VARCHAR(500) NOT NULL,
     thumbnail_url VARCHAR(500) NOT NULL,
@@ -61,68 +61,48 @@ const SQL_STATEMENTS = [
     mime_type VARCHAR(50) DEFAULT 'image/jpeg',
     download_count INT DEFAULT 0,
     sort_order INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_album_id (album_id),
-    INDEX idx_user_id (user_id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_photos_album_id ON photos(album_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_photos_user_id ON photos(user_id)`,
 
   // Album access logs
   `CREATE TABLE IF NOT EXISTS album_access_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    album_id INT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    album_id INT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
     ip_address VARCHAR(45) DEFAULT NULL,
     user_agent TEXT DEFAULT NULL,
-    action ENUM('view', 'download') DEFAULT 'view',
+    action VARCHAR(20) DEFAULT 'view' CHECK (action IN ('view', 'download')),
     photo_id INT DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
-    INDEX idx_album_id (album_id),
-    INDEX idx_action (action),
-    INDEX idx_created_at (created_at)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_logs_album_id ON album_access_logs(album_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_logs_action ON album_access_logs(action)`,
+  `CREATE INDEX IF NOT EXISTS idx_logs_created_at ON album_access_logs(created_at)`,
 ];
 
 async function initDatabase() {
-  console.log('🔧 Initializing database...');
+  console.log('🔧 Initializing PostgreSQL database...');
 
-  const dbName = process.env.DB_NAME || 'picshare';
-
-  // First connect without database to create it if needed
-  const connNoDB = await mysql.createConnection({
+  const client = new pg.Client({
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    user: process.env.DB_USER || 'root',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    user: process.env.DB_USER || 'picshare',
     password: process.env.DB_PASSWORD || '',
-    charset: 'utf8mb4',
+    database: process.env.DB_NAME || 'picshare',
   });
 
   try {
-    await connNoDB.query(
-      `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
-    console.log(`✅ Database "${dbName}" ensured`);
-  } finally {
-    await connNoDB.end();
-  }
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL');
 
-  // Now connect WITH the database specified
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: dbName,
-    charset: 'utf8mb4',
-  });
-
-  try {
     for (const sql of SQL_STATEMENTS) {
-      await connection.query(sql);
+      await client.query(sql);
     }
 
-    console.log('✅ All tables created successfully');
+    console.log('✅ All tables and indexes created successfully');
     console.log('');
     console.log('Tables:');
     console.log('  - users (photographers & admins)');
@@ -133,7 +113,7 @@ async function initDatabase() {
     console.error('❌ Database initialization failed:', error.message);
     throw error;
   } finally {
-    await connection.end();
+    await client.end();
   }
 }
 
