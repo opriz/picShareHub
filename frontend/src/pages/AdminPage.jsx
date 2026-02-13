@@ -79,8 +79,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">管理后台</h1>
         <p className="text-sm text-gray-500 mt-1">平台数据总览和管理</p>
       </div>
@@ -259,6 +260,7 @@ export default function AdminPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

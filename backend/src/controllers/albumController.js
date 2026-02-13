@@ -95,8 +95,39 @@ export async function getMyAlbums(req, res) {
 export async function getAlbumDetail(req, res) {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
 
+    // Validate id parameter
+    if (!id || isNaN(parseInt(id))) {
+      console.warn(`Invalid album ID: ${id}, userId: ${userId}`);
+      return res.status(400).json({ error: '无效的影集ID' });
+    }
+
+    if (!userId) {
+      console.warn(`Missing userId for album ID: ${id}`);
+      return res.status(401).json({ error: '请先登录' });
+    }
+
+    // First check if album exists (without user check)
+    const albumExistsResult = await pool.query(
+      'SELECT id, user_id FROM albums WHERE id = $1',
+      [id]
+    );
+
+    if (albumExistsResult.rows.length === 0) {
+      console.warn(`Album not found: ${id}, userId: ${userId}`);
+      return res.status(404).json({ error: '影集不存在' });
+    }
+
+    const albumOwnerId = albumExistsResult.rows[0].user_id;
+
+    // Check if user owns the album
+    if (albumOwnerId !== userId) {
+      console.warn(`User ${userId} attempted to access album ${id} owned by ${albumOwnerId}`);
+      return res.status(403).json({ error: '无权访问此影集' });
+    }
+
+    // Get album details with user info
     const albumsResult = await pool.query(
       `SELECT a.*, u.name as photographer_name
        FROM albums a
@@ -106,6 +137,7 @@ export async function getAlbumDetail(req, res) {
     );
 
     if (albumsResult.rows.length === 0) {
+      console.warn(`Album query returned no results: ${id}, userId: ${userId}`);
       return res.status(404).json({ error: '影集不存在' });
     }
 
@@ -130,6 +162,12 @@ export async function getAlbumDetail(req, res) {
     });
   } catch (error) {
     console.error('Get album detail error:', error);
+    console.error('Error details:', {
+      id: req.params?.id,
+      userId: req.user?.id,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: '获取影集详情失败' });
   }
 }

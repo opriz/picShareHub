@@ -37,8 +37,14 @@ query-ecs-*.js
 query-rds-*.js
 reset-rds-*.js
 setup-rds.js
+setup-aliyun-email.js
+configure-aliyun-email.sh
+quick-setup-email.sh
+test-smtp-connection.js
 try-deploy-*.sh
 
 # Deployment docs with sensitive info
 DEPLOY_*.md
 POSTGRESQL_MIGRATION.md
+ALIYUN_EMAIL_SETUP.md
+EMAIL_CONFIG.md

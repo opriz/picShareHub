@@ -26,13 +26,49 @@ export default function AlbumDetailPage() {
   const [previewImg, setPreviewImg] = useState(null);
 
   const fetchAlbum = useCallback(async () => {
+    // Validate id parameter
+    if (!id || isNaN(parseInt(id))) {
+      console.warn('Invalid album ID:', id);
+      toast.error('无效的影集ID');
+      navigate('/dashboard');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await albumAPI.getDetail(id);
       setAlbum(res.data.album);
       setPhotos(res.data.photos);
     } catch (err) {
-      toast.error('影集不存在');
-      navigate('/dashboard');
+      const status = err.response?.status;
+      const errorMessage = err.response?.data?.error || '获取影集失败';
+      
+      console.error('Fetch album error:', {
+        id,
+        status,
+        errorMessage,
+        error: err.message,
+      });
+
+      if (status === 404) {
+        toast.error('影集不存在');
+      } else if (status === 403) {
+        toast.error('无权访问此影集');
+      } else if (status === 401) {
+        toast.error('请先登录');
+        // Will be handled by API interceptor
+      } else if (status === 400) {
+        toast.error(errorMessage);
+      } else {
+        toast.error(errorMessage || '获取影集失败，请稍后重试');
+      }
+      
+      // Only navigate if it's a 404 or 403 error
+      if (status === 404 || status === 403) {
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      }
     } finally {
       setLoading(false);
     }
@@ -130,9 +166,10 @@ export default function AlbumDetailPage() {
   const isExpired = album.isExpired || new Date(album.expires_at) < new Date();
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
         <div className="flex items-start space-x-3">
           <button
             onClick={() => navigate('/dashboard')}
@@ -389,6 +426,7 @@ export default function AlbumDetailPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -13,9 +13,29 @@ export default function DashboardPage() {
   const fetchAlbums = useCallback(async () => {
     try {
       const res = await albumAPI.getMyAlbums();
-      setAlbums(res.data.albums);
+      // 确保albums是数组，即使API返回异常
+      const albumsList = Array.isArray(res.data?.albums) ? res.data.albums : [];
+      setAlbums(albumsList);
     } catch (err) {
-      toast.error('获取影集失败');
+      // 检查是否是网络错误或真正的服务器错误
+      const isNetworkError = !err.response || err.code === 'ECONNABORTED' || err.message === 'Network Error';
+      const isServerError = err.response?.status >= 500;
+      
+      // 只有在真正的错误时才显示提示，空列表是正常情况
+      if (isNetworkError || isServerError) {
+        // 使用函数式更新，检查之前的状态
+        setAlbums((prevAlbums) => {
+          if (prevAlbums.length > 0) {
+            toast.error('获取影集失败，请刷新页面重试');
+            return prevAlbums; // 保持原有数据
+          }
+          // 如果之前就是空列表，不显示错误（空列表是正常情况）
+          return [];
+        });
+      } else {
+        // 其他错误（如401未授权），设置为空数组但不显示错误
+        setAlbums([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -73,7 +93,8 @@ export default function DashboardPage() {
 
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">我的影集</h1>
           <p className="text-sm text-gray-500 mt-1">共 {albums.length} 个影集</p>
@@ -89,12 +110,23 @@ export default function DashboardPage() {
       </div>
 
       {albums.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border border-gray-100">
-          <Image className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">还没有影集</h3>
-          <p className="text-gray-500 mb-6">点击上方按钮创建你的第一个影集</p>
+        <div 
+          className="text-center py-20 bg-white rounded-2xl border border-gray-100"
+          onClick={(e) => {
+            // 防止点击空状态区域时触发任何操作
+            e.stopPropagation();
+          }}
+        >
+          <div className="pointer-events-none">
+            <Image className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">还没有影集</h3>
+            <p className="text-gray-500 mb-6">点击上方按钮创建你的第一个影集</p>
+          </div>
           <button
-            onClick={handleCreate}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCreate();
+            }}
             disabled={creating}
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200"
           >
@@ -170,6 +202,7 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

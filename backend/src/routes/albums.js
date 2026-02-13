@@ -19,12 +19,11 @@ router.use(authenticate);
 // Album CRUD
 router.post('/', createAlbum);
 router.get('/', getMyAlbums);
+// QR code route must come before /:id to avoid route conflict
+router.get('/:id/qrcode', getAlbumQRCode);
 router.get('/:id', getAlbumDetail);
 router.put('/:id', updateAlbum);
 router.delete('/:id', deleteAlbum);
-
-// QR code
-router.get('/:id/qrcode', getAlbumQRCode);
 
 // Photo management
 router.post('/:albumId/photos', uploadMiddleware, uploadPhotos);

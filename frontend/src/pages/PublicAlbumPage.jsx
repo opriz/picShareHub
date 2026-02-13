@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { publicAPI } from '../utils/api';
 import { formatFileSize } from '../utils/format';
-import { Camera, Download, Image, Clock, AlertCircle, X, User } from 'lucide-react';
+import { Camera, Download, Image, Clock, AlertCircle, X, User, LogIn, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function PublicAlbumPage() {
   const { shareCode } = useParams();
+  const navigate = useNavigate();
   const [album, setAlbum] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,12 +94,30 @@ export default function PublicAlbumPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40" style={{ width: '100%', maxWidth: '100%' }}>
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between" style={{ width: '100%', maxWidth: '100%' }}>
-          <div className="flex items-center space-x-2">
+          <Link 
+            to="/login" 
+            className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/login');
+            }}
+          >
             <Camera className="w-6 h-6 text-indigo-600" />
             <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               PicShare
             </span>
-          </div>
+          </Link>
+          <Link
+            to="/login"
+            className="flex items-center space-x-1.5 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/login');
+            }}
+          >
+            <LogIn className="w-4 h-4" />
+            <span>登录</span>
+          </Link>
         </div>
       </header>
 
@@ -180,6 +199,17 @@ export default function PublicAlbumPage() {
             ))}
           </div>
         )}
+
+        {/* 意见反馈入口 */}
+        <div className="mt-8 mb-6 text-center">
+          <Link
+            to="/feedback"
+            className="inline-flex items-center px-6 py-3 text-sm text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors border border-gray-200 hover:border-indigo-200"
+          >
+            <MessageSquare className="w-4 h-4 mr-2" />
+            意见反馈
+          </Link>
+        </div>
       </div>
 
       {/* Image preview */}

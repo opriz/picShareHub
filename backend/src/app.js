@@ -12,6 +12,7 @@ import authRoutes from './routes/auth.js';
 import albumRoutes from './routes/albums.js';
 import publicRoutes from './routes/public.js';
 import adminRoutes from './routes/admin.js';
+import feedbackRoutes from './routes/feedback.js';
 import cleanupExpiredAlbums from './scripts/cleanupExpired.js';
 
 dotenv.config();
@@ -94,6 +95,7 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api', publicRoutes);
+app.use('/api', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check

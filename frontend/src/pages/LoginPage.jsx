@@ -21,8 +21,13 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const user = await login(email, password);
-      toast.success('登录成功');
+      const result = await login(email, password);
+      const user = result.user || result;
+      if (result.requiresVerification || result.message?.includes('验证')) {
+        toast.success(result.message || '登录成功！请尽快验证您的邮箱', { duration: 5000 });
+      } else {
+        toast.success(result.message || '登录成功');
+      }
       navigate(user.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || '登录失败');
@@ -94,12 +99,32 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <span className="text-sm text-gray-500">还没有账号？</span>
-            <Link to="/register" className="text-sm text-indigo-600 font-medium ml-1 hover:text-indigo-700">
-              注册
-            </Link>
+          <div className="mt-6 space-y-3">
+            <div className="text-center">
+              <span className="text-sm text-gray-500">还没有账号？</span>
+              <Link to="/register" className="text-sm text-indigo-600 font-medium ml-1 hover:text-indigo-700">
+                注册
+              </Link>
+            </div>
+            <div className="text-center">
+              <Link to="/forgot-password" className="text-sm text-indigo-600 font-medium hover:text-indigo-700">
+                忘记密码？
+              </Link>
+            </div>
           </div>
+        </div>
+
+        {/* 意见反馈入口 */}
+        <div className="mt-6 text-center">
+          <Link 
+            to="/feedback" 
+            className="inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+          >
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            意见反馈
+          </Link>
         </div>
       </div>
     </div>

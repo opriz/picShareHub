@@ -6,10 +6,14 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import AlbumDetailPage from './pages/AlbumDetailPage';
 import PublicAlbumPage from './pages/PublicAlbumPage';
 import AdminPage from './pages/AdminPage';
+import FeedbackPage from './pages/FeedbackPage';
 import './App.css';
 
 function AppRoutes() {
@@ -21,6 +25,9 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPasswordPage />} />
+      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPasswordPage />} />
+      <Route path="/feedback" element={<FeedbackPage />} />
       <Route path="/s/:shareCode" element={<PublicAlbumPage />} />
 
       {/* Protected routes */}
@@ -30,6 +37,20 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout><DashboardPage /></Layout>
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout><ProfilePage /></Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/feedback"
+        element={
+          <Layout><FeedbackPage /></Layout>
         }
       />
       <Route

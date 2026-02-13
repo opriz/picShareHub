@@ -21,7 +21,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // 对于不需要认证的API（如resend-verification, forgot-password），即使返回401也不应该登出
+    const noAuthRequiredPaths = ['/auth/resend-verification', '/auth/forgot-password', '/auth/reset-password', '/auth/register', '/auth/login', '/auth/verify-email'];
+    const isNoAuthPath = noAuthRequiredPaths.some(path => error.config?.url?.includes(path));
+    
+    if (error.response?.status === 401 && !isNoAuthPath) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/s/')) {
@@ -37,6 +41,9 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   verifyEmail: (token) => api.get(`/auth/verify-email?token=${token}`),
+  resendVerification: (data) => api.post('/auth/resend-verification', data),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
   getProfile: () => api.get('/auth/profile'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.put('/auth/change-password', data),
@@ -73,6 +80,14 @@ export const adminAPI = {
   getUserAlbums: (userId, page = 1) => api.get(`/admin/users/${userId}/albums?page=${page}`),
   getAllAlbums: (page = 1, status = 'all') => api.get(`/admin/albums?page=${page}&status=${status}`),
   getAlbumLogs: (albumId) => api.get(`/admin/albums/${albumId}/logs`),
+};
+
+// Feedback APIs
+export const feedbackAPI = {
+  submit: (formData) => api.post('/feedback', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000, // 1 minute for feedback submission
+  }),
 };
 
 export default api;

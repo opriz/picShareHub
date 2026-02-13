@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { generateToken } from '../utils/helpers.js';
-import { sendVerificationEmail } from '../utils/email.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const JWT_EXPIRES_IN = '7d';
@@ -81,8 +81,9 @@ export async function register(req, res) {
       }
     }
 
-    // In dev mode, auto-verify
-    const isVerified = process.env.NODE_ENV !== 'production' || !process.env.SMTP_HOST;
+    // Only auto-verify if SMTP is not configured (for development)
+    // In production, user must verify email before login
+    const isVerified = !process.env.SMTP_HOST;
     if (isVerified) {
       await pool.query(
         'UPDATE users SET email_verified = TRUE WHERE id = $1',
@@ -143,15 +144,14 @@ export async function login(req, res) {
       return res.status(401).json({ error: '邮箱或密码错误' });
     }
 
-    // Check email verified
-    if (!user.email_verified) {
-      return res.status(403).json({ error: '请先验证邮箱' });
-    }
-
+    // Allow login even if email is not verified, but warn user
     const token = signToken(user);
+    const emailVerified = !!user.email_verified;
 
     res.json({
-      message: '登录成功',
+      message: emailVerified 
+        ? '登录成功' 
+        : '登录成功！请尽快验证您的邮箱以使用全部功能。',
       token,
       user: {
         id: user.id,
@@ -159,8 +159,9 @@ export async function login(req, res) {
         name: user.name,
         role: user.role,
         avatarUrl: user.avatar_url,
-        emailVerified: !!user.email_verified,
+        emailVerified: emailVerified,
       },
+      requiresVerification: !emailVerified,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -247,7 +248,7 @@ export async function updateProfile(req, res) {
   }
 }
 
-// Change password
+// Change password (authenticated user)
 export async function changePassword(req, res) {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -280,5 +281,141 @@ export async function changePassword(req, res) {
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ error: '修改密码失败' });
+  }
+}
+
+// Forgot password - send reset email
+export async function forgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: '请输入邮箱地址' });
+    }
+
+    // Find user
+    const userResult = await pool.query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    // Always return success to prevent email enumeration
+    if (userResult.rows.length === 0) {
+      return res.json({ message: '如果该邮箱已注册，我们已发送密码重置邮件' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Generate reset token
+    const resetToken = generateToken();
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save reset token
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3',
+      [resetToken, resetExpires, user.id]
+    );
+
+    // Send reset email
+    try {
+      await sendPasswordResetEmail(email, resetToken);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      // Still return success to prevent email enumeration
+    }
+
+    res.json({ message: '如果该邮箱已注册，我们已发送密码重置邮件' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: '发送失败，请稍后重试' });
+  }
+}
+
+// Resend verification email
+export async function resendVerificationEmail(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: '请输入邮箱地址' });
+    }
+
+    // Find user
+    const userResult = await pool.query(
+      'SELECT id, email, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+
+    // Always return success to prevent email enumeration
+    if (userResult.rows.length === 0) {
+      return res.json({ message: '如果该邮箱已注册，我们已发送验证邮件' });
+    }
+
+    const user = userResult.rows[0];
+
+    // If already verified, return success without sending
+    if (user.email_verified) {
+      return res.json({ message: '该邮箱已验证，无需重新验证' });
+    }
+
+    // Generate new verification token
+    const verificationToken = generateToken();
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    // Update verification token
+    await pool.query(
+      'UPDATE users SET verification_token = $1, verification_expires = $2 WHERE id = $3',
+      [verificationToken, verificationExpires, user.id]
+    );
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Still return success to prevent email enumeration
+    }
+
+    res.json({ message: '如果该邮箱已注册，我们已发送验证邮件' });
+  } catch (error) {
+    console.error('Resend verification email error:', error);
+    res.status(500).json({ error: '发送失败，请稍后重试' });
+  }
+}
+
+// Reset password with token
+export async function resetPassword(req, res) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: '请填写完整' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: '密码至少6位' });
+    }
+
+    // Find user with valid reset token
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE reset_token = $1 AND reset_expires > NOW()',
+      [token]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: '重置链接已过期或无效' });
+    }
+
+    // Update password
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2',
+      [newHash, userResult.rows[0].id]
+    );
+
+    res.json({ message: '密码重置成功，请使用新密码登录' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: '重置密码失败' });
   }
 }

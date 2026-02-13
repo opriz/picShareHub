@@ -12,7 +12,22 @@ export function AuthProvider({ children }) {
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        
+        // 如果有token，尝试刷新用户信息以获取最新状态（包括邮箱验证状态）
+        const refreshUserInfo = async () => {
+          try {
+            const res = await authAPI.getProfile();
+            const userData = res.data.user;
+            localStorage.setItem('user', JSON.stringify(userData));
+            setUser(userData);
+          } catch {
+            // 如果刷新失败（如token过期），保持使用本地存储的用户信息
+          }
+        };
+        
+        refreshUserInfo();
       } catch {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -23,11 +38,11 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const res = await authAPI.login({ email, password });
-    const { token, user: userData } = res.data;
+    const { token, user: userData, requiresVerification, message } = res.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-    return userData;
+    return { user: userData, requiresVerification, message };
   }, []);
 
   const register = useCallback(async (email, password, name) => {

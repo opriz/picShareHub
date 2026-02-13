@@ -122,12 +122,12 @@ OSS_ACCESS_KEY_SECRET=${ALIYUN_SK:-${OSS_ACCESS_KEY_SECRET:-}}
 # Frontend
 FRONTEND_URL=https://${DOMAIN}
 
-# Email
+# Email (阿里云邮件推送)
 SMTP_HOST=${SMTP_HOST:-}
 SMTP_PORT=${SMTP_PORT:-465}
 SMTP_USER=${SMTP_USER:-}
 SMTP_PASS=${SMTP_PASS:-}
-SMTP_FROM=${SMTP_FROM:-PicShare <noreply@${DOMAIN}>}
+SMTP_FROM=${SMTP_FROM:-PicShare <noreply@${DOMAIN:-picshare.com.cn}>}
 
 # Admin
 ADMIN_EMAIL=${ADMIN_EMAIL:-admin@picshare.com.cn}

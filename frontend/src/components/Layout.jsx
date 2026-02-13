@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Camera, LogOut, Settings, LayoutDashboard, Menu, X, Shield } from 'lucide-react';
+import { Camera, LogOut, Settings, LayoutDashboard, Menu, X, Shield, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Layout({ children }) {
@@ -56,6 +56,30 @@ export default function Layout({ children }) {
                 </Link>
               )}
 
+              <Link
+                to="/profile"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/profile')
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Settings className="w-4 h-4 inline mr-1.5" />
+                个人设置
+              </Link>
+
+              <Link
+                to="/feedback"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/feedback')
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4 inline mr-1.5" />
+                意见反馈
+              </Link>
+
               <div className="w-px h-6 bg-gray-200 mx-2" />
 
               <span className="text-sm text-gray-500 px-2">
@@ -100,6 +124,20 @@ export default function Layout({ children }) {
                 管理后台
               </Link>
             )}
+            <Link
+              to="/profile"
+              className="block px-4 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              个人设置
+            </Link>
+            <Link
+              to="/feedback"
+              className="block px-4 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              意见反馈
+            </Link>
             <div className="border-t border-gray-100 pt-2 mt-2">
               <div className="px-4 py-2 text-sm text-gray-500">{user?.name} ({user?.email})</div>
               <button
@@ -114,7 +152,9 @@ export default function Layout({ children }) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ width: '100%', maxWidth: '100%' }}>
-        {children}
+        <div style={{ width: '100%', maxWidth: '100%' }}>
+          {children}
+        </div>
       </main>
     </div>
   );
