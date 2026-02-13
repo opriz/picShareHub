@@ -9,7 +9,7 @@ async function cleanupExpiredAlbums() {
 
   try {
     // Find expired albums
-    const [expiredAlbums] = await pool.execute(
+    const [expiredAlbums] = await pool.query(
       `SELECT id FROM albums
        WHERE (is_expired = 0 AND expires_at <= NOW())
        OR (is_expired = 1 AND expires_at <= DATE_SUB(NOW(), INTERVAL 1 DAY))` // Give 1 extra day before deleting data
@@ -23,12 +23,12 @@ async function cleanupExpiredAlbums() {
     console.log(`Found ${expiredAlbums.length} expired album(s)`);
 
     // First, mark newly expired albums
-    await pool.execute(
+    await pool.query(
       'UPDATE albums SET is_expired = 1 WHERE is_expired = 0 AND expires_at <= NOW()'
     );
 
     // Delete albums that have been expired for over 1 day (including their OSS files)
-    const [toDelete] = await pool.execute(
+    const [toDelete] = await pool.query(
       `SELECT a.id, p.oss_key, p.thumbnail_oss_key
        FROM albums a
        LEFT JOIN photos p ON p.album_id = a.id
@@ -59,7 +59,7 @@ async function cleanupExpiredAlbums() {
       // Get unique album IDs to delete
       const albumIds = [...new Set(toDelete.map((r) => r.id))];
       for (const albumId of albumIds) {
-        await pool.execute('DELETE FROM albums WHERE id = ?', [albumId]);
+        await pool.query('DELETE FROM albums WHERE id = ?', [albumId]);
       }
       console.log(`Deleted ${albumIds.length} expired album(s) from database`);
     }
@@ -70,15 +70,18 @@ async function cleanupExpiredAlbums() {
   }
 }
 
-// Run if called directly
-cleanupExpiredAlbums()
-  .then(() => {
-    console.log('Done.');
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error('Fatal:', err);
-    process.exit(1);
-  });
+// Run if called directly (not imported)
+const isMainModule = process.argv[1] && process.argv[1].endsWith('cleanupExpired.js');
+if (isMainModule) {
+  cleanupExpiredAlbums()
+    .then(() => {
+      console.log('Done.');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('Fatal:', err);
+      process.exit(1);
+    });
+}
 
 export default cleanupExpiredAlbums;

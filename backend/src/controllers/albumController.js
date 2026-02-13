@@ -20,7 +20,7 @@ export async function createAlbum(req, res) {
       expiresAt = getDefaultExpiry(); // 24 hours
     }
 
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       `INSERT INTO albums (user_id, title, share_code, description, expires_at)
        VALUES (?, ?, ?, ?, ?)`,
       [userId, albumTitle, shareCode, description || null, expiresAt]
@@ -53,7 +53,7 @@ export async function getMyAlbums(req, res) {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       `SELECT id, title, share_code, description, cover_url, photo_count,
               view_count, download_count, expires_at, is_expired, created_at
        FROM albums
@@ -63,7 +63,7 @@ export async function getMyAlbums(req, res) {
       [userId, limit, offset]
     );
 
-    const [countResult] = await pool.execute(
+    const [countResult] = await pool.query(
       'SELECT COUNT(*) as total FROM albums WHERE user_id = ?',
       [userId]
     );
@@ -97,7 +97,7 @@ export async function getAlbumDetail(req, res) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       `SELECT a.*, u.name as photographer_name
        FROM albums a
        JOIN users u ON a.user_id = u.id
@@ -112,7 +112,7 @@ export async function getAlbumDetail(req, res) {
     const album = albums[0];
 
     // Get photos
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       `SELECT id, original_name, original_url, thumbnail_url, file_size, width, height, download_count, created_at
        FROM photos
        WHERE album_id = ?
@@ -142,7 +142,7 @@ export async function updateAlbum(req, res) {
     const { title, description, expiresInHours } = req.body;
 
     // Verify ownership
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       'SELECT id FROM albums WHERE id = ? AND user_id = ?',
       [id, userId]
     );
@@ -174,7 +174,7 @@ export async function updateAlbum(req, res) {
     }
 
     values.push(id);
-    await pool.execute(
+    await pool.query(
       `UPDATE albums SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
@@ -193,7 +193,7 @@ export async function deleteAlbum(req, res) {
     const userId = req.user.id;
 
     // Get album with photos
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       'SELECT id FROM albums WHERE id = ? AND user_id = ?',
       [id, userId]
     );
@@ -203,7 +203,7 @@ export async function deleteAlbum(req, res) {
     }
 
     // Get all photos to delete from OSS
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       'SELECT oss_key, thumbnail_oss_key FROM photos WHERE album_id = ?',
       [id]
     );
@@ -221,7 +221,7 @@ export async function deleteAlbum(req, res) {
     }
 
     // Delete from DB (cascade will handle photos and logs)
-    await pool.execute('DELETE FROM albums WHERE id = ?', [id]);
+    await pool.query('DELETE FROM albums WHERE id = ?', [id]);
 
     res.json({ message: '影集已删除' });
   } catch (error) {
@@ -236,7 +236,7 @@ export async function getAlbumQRCode(req, res) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       'SELECT share_code FROM albums WHERE id = ? AND user_id = ?',
       [id, userId]
     );
@@ -273,7 +273,7 @@ export async function viewAlbumByShareCode(req, res) {
   try {
     const { shareCode } = req.params;
 
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       `SELECT a.*, u.name as photographer_name
        FROM albums a
        JOIN users u ON a.user_id = u.id
@@ -293,20 +293,20 @@ export async function viewAlbumByShareCode(req, res) {
     }
 
     // Increment view count
-    await pool.execute(
+    await pool.query(
       'UPDATE albums SET view_count = view_count + 1 WHERE id = ?',
       [album.id]
     );
 
     // Log access
-    await pool.execute(
+    await pool.query(
       `INSERT INTO album_access_logs (album_id, ip_address, user_agent, action)
        VALUES (?, ?, ?, 'view')`,
       [album.id, req.ip, req.headers['user-agent'] || '']
     );
 
     // Get photos (only thumbnails for initial load)
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       `SELECT id, original_name, thumbnail_url, file_size, width, height
        FROM photos
        WHERE album_id = ?
@@ -338,7 +338,7 @@ export async function downloadPhoto(req, res) {
     const { shareCode, photoId } = req.params;
 
     // Verify album exists and not expired
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       'SELECT id, is_expired, expires_at FROM albums WHERE share_code = ?',
       [shareCode]
     );
@@ -353,7 +353,7 @@ export async function downloadPhoto(req, res) {
     }
 
     // Get photo
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       'SELECT id, original_url, original_name FROM photos WHERE id = ? AND album_id = ?',
       [photoId, album.id]
     );
@@ -363,17 +363,17 @@ export async function downloadPhoto(req, res) {
     }
 
     // Increment download count
-    await pool.execute(
+    await pool.query(
       'UPDATE photos SET download_count = download_count + 1 WHERE id = ?',
       [photoId]
     );
-    await pool.execute(
+    await pool.query(
       'UPDATE albums SET download_count = download_count + 1 WHERE id = ?',
       [album.id]
     );
 
     // Log download
-    await pool.execute(
+    await pool.query(
       `INSERT INTO album_access_logs (album_id, ip_address, user_agent, action, photo_id)
        VALUES (?, ?, ?, 'download', ?)`,
       [album.id, req.ip, req.headers['user-agent'] || '', photoId]

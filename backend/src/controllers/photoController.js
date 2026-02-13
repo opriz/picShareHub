@@ -17,7 +17,7 @@ export async function uploadPhotos(req, res) {
     }
 
     // Verify album ownership
-    const [albums] = await pool.execute(
+    const [albums] = await pool.query(
       'SELECT id, is_expired, expires_at FROM albums WHERE id = ? AND user_id = ?',
       [albumId, userId]
     );
@@ -75,7 +75,7 @@ export async function uploadPhotos(req, res) {
         const thumbnailUrl = `${baseUrl}/${thumbnailKey}`;
 
         // Save to DB
-        const [result] = await pool.execute(
+        const [result] = await pool.query(
           `INSERT INTO photos (album_id, user_id, original_name, original_url, thumbnail_url,
             oss_key, thumbnail_oss_key, file_size, width, height, mime_type)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -111,7 +111,7 @@ export async function uploadPhotos(req, res) {
 
     // Update album photo count and cover
     if (uploadedPhotos.length > 0) {
-      await pool.execute(
+      await pool.query(
         `UPDATE albums SET
           photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = ?),
           cover_url = COALESCE(cover_url, ?)
@@ -138,7 +138,7 @@ export async function deletePhoto(req, res) {
     const userId = req.user.id;
 
     // Verify ownership
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       `SELECT p.oss_key, p.thumbnail_oss_key
        FROM photos p
        JOIN albums a ON p.album_id = a.id
@@ -159,10 +159,10 @@ export async function deletePhoto(req, res) {
     }
 
     // Delete from DB
-    await pool.execute('DELETE FROM photos WHERE id = ?', [photoId]);
+    await pool.query('DELETE FROM photos WHERE id = ?', [photoId]);
 
     // Update album count
-    await pool.execute(
+    await pool.query(
       `UPDATE albums SET photo_count = (SELECT COUNT(*) FROM photos WHERE album_id = ?) WHERE id = ?`,
       [albumId, albumId]
     );
@@ -180,7 +180,7 @@ export async function getPhotoOriginal(req, res) {
     const { albumId, photoId } = req.params;
     const userId = req.user.id;
 
-    const [photos] = await pool.execute(
+    const [photos] = await pool.query(
       `SELECT p.original_url, p.original_name
        FROM photos p
        JOIN albums a ON p.album_id = a.id

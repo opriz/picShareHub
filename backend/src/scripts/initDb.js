@@ -87,8 +87,10 @@ const SQL_STATEMENTS = [
 async function initDatabase() {
   console.log('🔧 Initializing database...');
 
+  const dbName = process.env.DB_NAME || 'picshare';
+
   // First connect without database to create it if needed
-  const connection = await mysql.createConnection({
+  const connNoDB = await mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '3306'),
     user: process.env.DB_USER || 'root',
@@ -96,18 +98,28 @@ async function initDatabase() {
     charset: 'utf8mb4',
   });
 
-  const dbName = process.env.DB_NAME || 'picshare';
-
   try {
-    await connection.execute(
+    await connNoDB.query(
       `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
     );
     console.log(`✅ Database "${dbName}" ensured`);
+  } finally {
+    await connNoDB.end();
+  }
 
-    await connection.execute(`USE \`${dbName}\``);
+  // Now connect WITH the database specified
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306'),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+    charset: 'utf8mb4',
+  });
 
+  try {
     for (const sql of SQL_STATEMENTS) {
-      await connection.execute(sql);
+      await connection.query(sql);
     }
 
     console.log('✅ All tables created successfully');
