@@ -18,14 +18,17 @@ export default function ProfilePage() {
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
   const [sendingVerificationEmail, setSendingVerificationEmail] = useState(false);
 
+  // 页面加载时刷新一次用户信息
+  useEffect(() => {
+    refreshProfile();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // user 变化时同步 name 输入框
   useEffect(() => {
     if (user) {
       setName(user.name || '');
-      
-      // 页面加载时刷新用户信息，更新验证状态
-      refreshProfile();
     }
-  }, [user, refreshProfile]);
+  }, [user]);
 
   // 如果用户未验证邮箱，定期检查验证状态（每30秒）
   useEffect(() => {

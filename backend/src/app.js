@@ -40,6 +40,8 @@ const corsOptions = {
       process.env.FRONTEND_URL || 'http://localhost:5173',
       'http://localhost:5173',
       'http://localhost:3000',
+      'http://www.picshare.com.cn',
+      'http://picshare.com.cn',
       'https://www.picshare.com.cn',
       'https://picshare.com.cn',
     ];
