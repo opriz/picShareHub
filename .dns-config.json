@@ -1,0 +1,9 @@
+{
+  "domainName": "picshare.com.cn",
+  "albDns": "alb-14trlrvmsf59tp8id4.cn-shanghai.alb.aliyuncsslb.com",
+  "recordType": "CNAME",
+  "configuredAt": "2026-02-14T04:02:03.439Z",
+  "records": {
+    "www": true
+  }
+}
